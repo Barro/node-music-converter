@@ -7,7 +7,7 @@ app.configure =>
         app.use express.static "#{__dirname}/public"
 
 optimist = require('optimist')
-argv = optimist.default("--port", 8080).argv
+argv = optimist.default("port", 8080).argv
 [datafile] = argv._
 
 app.get '/', (req, res) ->
