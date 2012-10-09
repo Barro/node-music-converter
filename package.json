@@ -12,7 +12,8 @@
     "optimist": "0.3.x",
     "lazy": "1.0.x",
     "temp": "0.4.x",
-    "jade": "0.27.x"
+    "jade": "0.27.x",
+    "node-fs": "0.1.x"
   },
   "noAnalyze": true,
   "devDependencies": {

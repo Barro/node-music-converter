@@ -1,7 +1,9 @@
 express = require 'express'
+nodefs = require "node-fs"
 app = express()
 
-cacheDir = "/tmp"
+cacheDir = "/tmp/.nmc"
+nodefs.mkdirSync cacheDir, 0o0755, true
 cacheLocation = "/converted"
 
 app.configure =>

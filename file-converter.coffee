@@ -61,7 +61,7 @@ exports.FileCache = class FileCache
 
         _createFilename: (conversionParams) =>
                 digest = @_getDigest conversionParams
-                filename = "nmc-#{digest}.#{conversionParams.suffix}"
+                filename = "#{digest}.#{conversionParams.suffix}"
                 return filename
 
         _getCacheName: (conversionParams) =>
