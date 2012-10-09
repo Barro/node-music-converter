@@ -56,7 +56,16 @@ playRandomSong = ->
 $("#next").click ->
     playRandomSong()
 
-console.log "waai"
+$("#pause").click ->
+    player = getPlayerObjects()
+    if (player.player.paused)
+        player.player.play()
+    else
+        player.player.pause()
+    if player.player.paused
+        $("#pause").text "Play"
+    else
+        $("#pause").text "Pause"
 
 $(document).ready ->
     audio = new Audio();
