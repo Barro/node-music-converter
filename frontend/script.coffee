@@ -43,13 +43,14 @@ preloadSong = (successCallback) ->
 
 playRandomSong = ->
     song = nextSong
+    window.location = "#" + song
     $("#status").text(song)
     player = getPlayerObjects()
     player.player.pause()
     player.jquery.empty()
 
-    encodedPath = encodeURIComponent(song)
     audioType = PLAYBACK_TYPES[PLAYBACK_TYPE]
+    encodedPath = encodeURIComponent(song)
     player.jquery.append("<source src=\"/file/#{encodedPath}?type=#{PLAYBACK_TYPE}\" type='#{audioType}' />")
 
     player.player.load()
@@ -69,6 +70,7 @@ $(document).ready ->
 
     player = getPlayerObjects()
     player.jquery.attr("controls", "controls")
+    player.jquery.bind "ended", playRandomSong
 
     $.getJSON "/files", (data) =>
         songData = []
@@ -76,8 +78,11 @@ $(document).ready ->
             songData.push([key])
             SONGS.push(key)
 
-        player.jquery.bind "ended", playRandomSong
-        preloadSong playRandomSong
+        if document.location.hash.length > 1
+                songName = document.location.hash.substr(1)
+                playSong songName
+        else
+                preloadSong playRandomSong
 
         columns = [ { "sTitle": "Song" } ]
 
