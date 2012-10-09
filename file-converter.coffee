@@ -45,8 +45,21 @@ class Mp3Converter
                                 return
                         callback null
 
+class FileCacheInstance
+        constructor: (@cache, @conversionParams) ->
+
+        createCache: (convertedFilename, callback) =>
+                return @cache.createCache convertedFilename, @conversionParams, callback
+
+        getCached: (callback) =>
+                return @cache.getCached @conversionParams, callback
+
+
 exports.FileCache = class FileCache
         constructor: (@cachedir="/tmp", @cacheLocation) ->
+
+        generate: (conversionParams) =>
+                return new FileCacheInstance @, conversionParams
 
         _getDigest: (conversionParams) ->
                 paramList = []
@@ -96,7 +109,7 @@ class FileConverter
                         mp3: new Mp3Converter()
                         ogg: new VorbisConverter()
 
-        _conversionDone: (err, conversionParams, tempname, response) =>
+        _conversionDone: (err, cacheInstance, tempname, response) =>
                 if err
                         fs.exists tempname, (exists) =>
                                 if exists
@@ -107,15 +120,12 @@ class FileConverter
                         if statErr
                                 response.send "Failed to read resulting file name.", 500
                                 return
-                        #response.set('content-length', stats.size)
                         stream = fs.createReadStream tempname
                         stream.on "end", =>
                                 fs.unlink tempname
-                        @cache.createCache tempname, conversionParams, (err, location) ->
-                                response.set("location", location)
+                        cacheInstance.createCache tempname, (err, location) ->
+                                response.set "location", location
                                 response.send "Go to #{location}", 302
-
-        _doConversion: (filename, params, response) =>
 
         convert: (type, filename, response) =>
                 if type not of @converters
@@ -130,25 +140,22 @@ class FileConverter
                         suffix: suffix
                         bitrate: @bitrate
 
-                @cache.getCached conversionParams, (err, location) =>
+                cacheInstance = @cache.generate conversionParams
+
+                cacheInstance.getCached (err, location) =>
                         if not err
-                                response.set("location", location)
+                                response.set "location", location
                                 response.send "Go to #{location}", 302
                                 return
                         fs.stat filename, (statErr, stats) =>
                                 if statErr
                                         response.send "Failed to read original file name.", 500
                                         return
-                                #response.set('last-modified', stats.mtime.toUTCString())
 
                                 tempname = temp.path {suffix: ".#{suffix}"}
                                 converter.convert filename, @bitrate, tempname, (err) =>
-                                        @_conversionDone err, conversionParams, tempname, response
+                                        @_conversionDone err, cacheInstance, tempname, response
 
-
-                response.set('content-type', converter.mimeType())
-                response.set('cache-control', 'max-age=315360000, public')
-                response.set('expires', (new Date(new Date().getTime() + 315360000*1000)).toUTCString());
 
 exports.FileConverterView = class FileConverterView
         constructor: (@fileDatabase, @cache, @defaultType="mp3") ->
