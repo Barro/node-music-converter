@@ -18,6 +18,7 @@ app.configure =>
         app.set 'views',"#{__dirname}/views"
         app.set 'view engine', 'jade'
         app.use "/frontend", express.static "#{__dirname}/build/frontend"
+        app.use "/external", express.static "#{__dirname}/external"
         app.use cacheLocation, express.static cacheDir
 
 app.get '/', (req, res) ->

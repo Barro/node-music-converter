@@ -9,6 +9,10 @@ PLAYBACK_TYPES = {ogg: 'audio/ogg', mp3: 'audio/mpeg'}
 PLAYBACK_TYPE = null
 nextSong = null
 
+playSong = (song) ->
+        nextSong = song
+        playRandomSong()
+
 preloadSong = (successCallback) ->
     item = Math.floor(Math.random() * SONGS.length)
     nextSong = SONGS[item];
@@ -67,16 +71,28 @@ $(document).ready ->
     player.jquery.attr("controls", "controls")
 
     $.getJSON "/files", (data) =>
+        songData = []
         $.each data, (key, value) =>
+            songData.push([key])
             SONGS.push(key)
 
         player.jquery.bind "ended", playRandomSong
-        # // player.jquery.bind("stalled", playRandomSong);
-        # // player.jquery.bind("error", playRandomSong);
-        # // player.jquery.bind("abort", playRandomSong);
-        # // player.jquery.bind("suspend", playRandomSong);
-        # // player.jquery.bind("emptied", playRandomSong);
         preloadSong playRandomSong
+
+        columns = [ { "sTitle": "Song" } ]
+
+        tableProperties =
+                sScrollY: "450px"
+                sDom: "frtiS"
+                bDeferRender: true
+                aaData: songData
+                aoColumns: columns
+
+        oTable = $('#playlist').dataTable tableProperties
+        $('#playlist tr').live "click", ->
+                aData = oTable.fnGetData( this )
+                iId = aData[0]
+                playSong iId
 
     player.player.onpause = ->
         $("#play-control").text "Play"
