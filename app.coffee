@@ -4,7 +4,7 @@ app = express()
 app.configure =>
         app.set 'views',"#{__dirname}/views"
         app.set 'view engine', 'jade'
-        app.use express.static "#{__dirname}/public"
+        app.use express.static "#{__dirname}/build/frontend"
 
 optimist = require('optimist')
 argv = optimist.default("port", 8080).argv

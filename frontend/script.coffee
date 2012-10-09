@@ -19,7 +19,7 @@ preloadSong = (successCallback) ->
     songPath = "/file/#{encodedPath}?type=#{PLAYBACK_TYPE}"
     request = $.get(songPath)
     errorCallback = =>
-        setTimeout-> preloadSong(successCallback), 1000
+        setTimeout (-> preloadSong(successCallback)), 1000
     request.error errorCallback
     request.success =>
         if (successCallback)
@@ -27,61 +27,58 @@ preloadSong = (successCallback) ->
         else
             nextStatus.append("<span style='color: green'>&nbsp;✓</span>")
 
-    // var player = new Audio();
-    // var playerContainer = $("#player-preloaded");
-    // playerContainer.empty();
-    // playerContainer.append(player);
-    // var playerJquery = $(player);
-    // var encodedPath = encodeURIComponent(nextSong);
-    // playerJquery.append("<source src='/file/" + encodedPath + "?type=ogg' type='audio/ogg' />");
-    // playerJquery.append("<source src='/file/" + encodedPath + "?type=mp3' type='audio/mpeg' />");
-    // playerJquery.attr("preload", "auto");
+    # // var player = new Audio();
+    # // var playerContainer = $("#player-preloaded");
+    # // playerContainer.empty();
+    # // playerContainer.append(player);
+    # // var playerJquery = $(player);
+    # // var encodedPath = encodeURIComponent(nextSong);
+    # // playerJquery.append("<source src='/file/" + encodedPath + "?type=ogg' type='audio/ogg' />");
+    # // playerJquery.append("<source src='/file/" + encodedPath + "?type=mp3' type='audio/mpeg' />");
+    # // playerJquery.attr("preload", "auto");
 
-function playRandomSong() {
-    var song = nextSong;
-    $("#status").text(song);
-    var player = getPlayerObjects();
-    player.player.pause();
-    player.jquery.empty();
+playRandomSong = ->
+    song = nextSong
+    $("#status").text(song)
+    player = getPlayerObjects()
+    player.player.pause()
+    player.jquery.empty()
 
-    var encodedPath = encodeURIComponent(song);
-    var audio_type = PLAYBACK_TYPES[PLAYBACK_TYPE];
-    player.jquery.append("<source src=\"/file/" + encodedPath + "?type=" + PLAYBACK_TYPE + "\" type='" + audio_type + "' />");
+    encodedPath = encodeURIComponent(song)
+    audioType = PLAYBACK_TYPES[PLAYBACK_TYPE]
+    player.jquery.append("<source src=\"/file/#{encodedPath}?type=#{PLAYBACK_TYPE}\" type='#{audioType}' />")
 
-    player.player.load();
-    player.player.play();
+    player.player.load()
+    player.player.play()
 
-    preloadSong();
-}
+    preloadSong()
 
-$("#next").click(function() {
-    playRandomSong();
-});
+$("#next").click ->
+    playRandomSong()
 
-$(document).ready(function() {
-    var audio = new Audio();
-    if (audio.canPlayType("audio/ogg")) {
-        PLAYBACK_TYPE = "ogg";
-    } else if (audio.canPlayType("audio/mpeg")) {
-        PLAYBACK_TYPE = "mp3";
-    } else {
-        $("#status").text("Your browser does not support Vorbis or MP3");
-        return;
-    }
+console.log "waai"
 
-    var player = getPlayerObjects();
-    player.jquery.attr("controls", "controls");
+$(document).ready ->
+    audio = new Audio();
+    if (audio.canPlayType("audio/ogg"))
+        PLAYBACK_TYPE = "ogg"
+    else if (audio.canPlayType("audio/mpeg"))
+        PLAYBACK_TYPE = "mp3"
+    else
+        $("#status").text("Your browser does not support Vorbis or MP3")
+        return
 
-    $.getJSON("/files", function (data) {
-        $.each(data, function(key, value) {
-            SONGS.push(key);
-        });
-        player.jquery.bind("ended", playRandomSong);
-        // player.jquery.bind("stalled", playRandomSong);
-        // player.jquery.bind("error", playRandomSong);
-        // player.jquery.bind("abort", playRandomSong);
-        // player.jquery.bind("suspend", playRandomSong);
-        // player.jquery.bind("emptied", playRandomSong);
-        preloadSong(playRandomSong);
-    });
-});
+    player = getPlayerObjects()
+    player.jquery.attr("controls", "controls")
+
+    $.getJSON "/files", (data) =>
+        $.each data, (key, value) =>
+            SONGS.push(key)
+
+        player.jquery.bind "ended", playRandomSong
+        # // player.jquery.bind("stalled", playRandomSong);
+        # // player.jquery.bind("error", playRandomSong);
+        # // player.jquery.bind("abort", playRandomSong);
+        # // player.jquery.bind("suspend", playRandomSong);
+        # // player.jquery.bind("emptied", playRandomSong);
+        preloadSong playRandomSong
