@@ -1,35 +1,31 @@
-function getPlayerObjects() {
-    var playerContainer =  $("#player");
-    var playerJquery = $("audio", playerContainer);
-    var player = playerJquery.get(0);
-    return {player: player, jquery: playerJquery};
-}
+getPlayerObjects = ->
+    playerContainer =  $("#player")
+    playerJquery = $("audio", playerContainer)
+    player = playerJquery.get(0)
+    return {player: player, jquery: playerJquery}
 
-var SONGS = [];
-var PLAYBACK_TYPES = {ogg: 'audio/ogg', mp3: 'audio/mpeg'};
-var PLAYBACK_TYPE = null;
-var nextSong = null;
+SONGS = []
+PLAYBACK_TYPES = {ogg: 'audio/ogg', mp3: 'audio/mpeg'}
+PLAYBACK_TYPE = null
+nextSong = null
 
-function preloadSong(successCallback) {
-    var item = Math.floor(Math.random() * SONGS.length);
+preloadSong = (successCallback) ->
+    item = Math.floor(Math.random() * SONGS.length)
     nextSong = SONGS[item];
-    var nextStatus = $("#status-next");
-    nextStatus.empty();
-    nextStatus.text(nextSong);
-    var encodedPath = encodeURIComponent(nextSong);
-    var songPath = "/file/" + encodedPath + "?type=" + PLAYBACK_TYPE;
-    var request = $.get(songPath);
-    var errorCallback = function() {
-        setTimeout(function() { preloadSong(successCallback); }, 1000);
-    }
-    request.error(errorCallback);
-    request.success(function() {
-        if (successCallback) {
-            successCallback();
-        } else {
-            nextStatus.append("<span style='color: green'>&nbsp;✓</span>");
-        }
-    });
+    nextStatus = $("#status-next")
+    nextStatus.empty()
+    nextStatus.text(nextSong)
+    encodedPath = encodeURIComponent(nextSong)
+    songPath = "/file/#{encodedPath}?type=#{PLAYBACK_TYPE}"
+    request = $.get(songPath)
+    errorCallback = =>
+        setTimeout-> preloadSong(successCallback), 1000
+    request.error errorCallback
+    request.success =>
+        if (successCallback)
+            successCallback()
+        else
+            nextStatus.append("<span style='color: green'>&nbsp;✓</span>")
 
     // var player = new Audio();
     // var playerContainer = $("#player-preloaded");
@@ -40,7 +36,6 @@ function preloadSong(successCallback) {
     // playerJquery.append("<source src='/file/" + encodedPath + "?type=ogg' type='audio/ogg' />");
     // playerJquery.append("<source src='/file/" + encodedPath + "?type=mp3' type='audio/mpeg' />");
     // playerJquery.attr("preload", "auto");
-}
 
 function playRandomSong() {
     var song = nextSong;
