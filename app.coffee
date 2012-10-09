@@ -7,7 +7,7 @@ cacheLocation = "/converted"
 app.configure =>
         app.set 'views',"#{__dirname}/views"
         app.set 'view engine', 'jade'
-        app.use express.static "#{__dirname}/build/frontend"
+        app.use "/frontend", express.static "#{__dirname}/build/frontend"
         app.use cacheLocation, express.static cacheDir
 
 optimist = require('optimist')

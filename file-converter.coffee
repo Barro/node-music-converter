@@ -48,7 +48,7 @@ class Mp3Converter
 exports.FileCache = class FileCache
         constructor: (@cachedir="/tmp", @cacheLocation) ->
 
-        _getDigest: (filename, conversionParams) ->
+        _getDigest: (conversionParams) ->
                 paramList = []
                 for key, value of conversionParams
                         paramList.push("#{key}:#{value}")
@@ -61,7 +61,7 @@ exports.FileCache = class FileCache
 
         _createFilename: (conversionParams) =>
                 digest = @_getDigest conversionParams
-                filename = ".nmc-#{digest}.#{conversionParams.suffix}"
+                filename = "nmc-#{digest}.#{conversionParams.suffix}"
                 return filename
 
         _getCacheName: (conversionParams) =>
@@ -78,16 +78,15 @@ exports.FileCache = class FileCache
                         if not exists
                                 callback "File '#{filepath}' does not exist.", null
                                 return
-                        callback null, fs.createReadStream filepath
+                        callback null, @_getLocation conversionParams
 
         createCache: (convertedFilename, conversionParams, callback) =>
-                digest = @_getDigest conversionParams
-                filepath = @_createFilename digest, conversionParams.suffix
-                input = fs.createReadStream sourceFilename
+                filepath = @_getCacheName conversionParams
+                input = fs.createReadStream convertedFilename
                 output = fs.createWriteStream filepath
                 input.pipe output
                 input.on "end", =>
-                        callbaxck null, @_getLocation()
+                        callback null, @_getLocation conversionParams
 
 
 class FileConverter
@@ -97,7 +96,7 @@ class FileConverter
                         mp3: new Mp3Converter()
                         ogg: new VorbisConverter()
 
-        _conversionDone: (err, response, tempname) =>
+        _conversionDone: (err, conversionParams, tempname, response) =>
                 if err
                         fs.exists tempname, (exists) =>
                                 if exists
@@ -108,11 +107,13 @@ class FileConverter
                         if statErr
                                 response.send "Failed to read resulting file name.", 500
                                 return
-                        response.set('content-length', stats.size)
+                        #response.set('content-length', stats.size)
                         stream = fs.createReadStream tempname
-                        stream.pipe response
                         stream.on "end", =>
                                 fs.unlink tempname
+                        @cache.createCache tempname, conversionParams, (err, location) ->
+                                response.set("location", location)
+                                response.send "Go to #{location}", 302
 
         _doConversion: (filename, params, response) =>
 
@@ -138,11 +139,11 @@ class FileConverter
                                 if statErr
                                         response.send "Failed to read original file name.", 500
                                         return
-                                response.set('last-modified', stats.mtime.toUTCString())
+                                #response.set('last-modified', stats.mtime.toUTCString())
 
                                 tempname = temp.path {suffix: ".#{suffix}"}
                                 converter.convert filename, @bitrate, tempname, (err) =>
-                                        @_conversionDone err, response, tempname
+                                        @_conversionDone err, conversionParams, tempname, response
 
 
                 response.set('content-type', converter.mimeType())
