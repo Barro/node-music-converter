@@ -4,4 +4,4 @@ FRONTEND_OBJECTS := $(addprefix build/,$(FRONTEND_SOURCES:.coffee=.js))
 all: $(FRONTEND_OBJECTS)
 
 build/%.js: %.coffee
-	coffee -p -c $^ > $@
+	coffee -o $(shell dirname "$@") -c $^

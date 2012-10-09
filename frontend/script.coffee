@@ -53,20 +53,6 @@ playRandomSong = ->
 
     preloadSong()
 
-$("#next").click ->
-    playRandomSong()
-
-$("#pause").click ->
-    player = getPlayerObjects()
-    if (player.player.paused)
-        player.player.play()
-    else
-        player.player.pause()
-    if player.player.paused
-        $("#pause").text "Play"
-    else
-        $("#pause").text "Pause"
-
 $(document).ready ->
     audio = new Audio();
     if (audio.canPlayType("audio/ogg"))
@@ -91,3 +77,17 @@ $(document).ready ->
         # // player.jquery.bind("suspend", playRandomSong);
         # // player.jquery.bind("emptied", playRandomSong);
         preloadSong playRandomSong
+
+    player.player.onpause = ->
+        $("#play-control").text "Play"
+    player.player.onplaying = ->
+        $("#play-control").text "Pause"
+
+    $("#next").click ->
+        playRandomSong()
+
+    $("#play-control").click ->
+        if (player.player.paused)
+            player.player.play()
+        else
+            player.player.pause()
