@@ -9,6 +9,10 @@ PLAYBACK_TYPES = {ogg: 'audio/ogg', mp3: 'audio/mpeg'}
 PLAYBACK_TYPE = null
 nextSong = null
 
+playHashSong = ->
+        songName = document.location.hash.substr(1)
+        playSong songName
+
 playSong = (song) ->
         nextSong = song
         playRandomSong()
@@ -71,6 +75,7 @@ $(document).ready ->
     player = getPlayerObjects()
     player.jquery.attr("controls", "controls")
     player.jquery.bind "ended", playRandomSong
+    $(document).bind "hashchange", playHashSong
 
     $.getJSON "/files", (data) =>
         songData = []
@@ -79,8 +84,7 @@ $(document).ready ->
             SONGS.push(key)
 
         if document.location.hash.length > 1
-                songName = document.location.hash.substr(1)
-                playSong songName
+                playHashSong()
         else
                 preloadSong playRandomSong
 
