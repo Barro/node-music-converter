@@ -164,6 +164,6 @@ $(document).ready ->
     slider.attr("value", player.player.volume * slider.attr("max"))
     $(".volume-intensity").text(Math.round(100 * player.player.volume))
     slider.change ->
-        newVolume = @value / (@max - @min)
-        if newVolume != NaN
-                player.player.volume = newVolume
+        me = $(@)
+        newVolume = me.val() / (me.attr("max") - me.attr("min"))
+        player.player.volume = newVolume
