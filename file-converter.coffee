@@ -54,6 +54,9 @@ class FileCacheInstance
         getCached: (callback) =>
                 return @cache.getCached @conversionParams, callback
 
+        getKey: =>
+                return @cache.getDigest @conversionParams
+
 
 exports.FileCache = class FileCache
         constructor: (@cachedir="/tmp", @cacheLocation) ->
@@ -61,7 +64,7 @@ exports.FileCache = class FileCache
         generate: (conversionParams) =>
                 return new FileCacheInstance @, conversionParams
 
-        _getDigest: (conversionParams) ->
+        getDigest: (conversionParams) ->
                 paramList = []
                 for key, value of conversionParams
                         paramList.push("#{key}:#{value}")
@@ -73,7 +76,7 @@ exports.FileCache = class FileCache
                 return hash.digest("hex")
 
         _createFilename: (conversionParams) =>
-                digest = @_getDigest conversionParams
+                digest = @getDigest conversionParams
                 filename = "#{digest}.#{conversionParams.suffix}"
                 return filename
 
@@ -96,6 +99,8 @@ exports.FileCache = class FileCache
         createCache: (convertedFilename, conversionParams, callback) =>
                 filepath = @_getCacheName conversionParams
                 input = fs.createReadStream convertedFilename
+                input.on "error", (err) =>
+                        console.log "Read stream error: #{err}"
                 output = fs.createWriteStream filepath
                 input.pipe output
                 input.on "end", =>
@@ -108,24 +113,36 @@ class FileConverter
                 @converters =
                         mp3: new Mp3Converter()
                         ogg: new VorbisConverter()
+                @_ongoingConversions = {}
 
-        _conversionDone: (err, cacheInstance, tempname, response) =>
+        _redirectToCachefile: (cacheInstance, response) =>
+
+        _createResponse: (err, cacheInstance, tempname, callback) =>
                 if err
                         fs.exists tempname, (exists) =>
                                 if exists
                                         fs.unlink tempname
-                                response.send "Failed to convert.", 500
-                        return
+                                callback {data: ["Failed to convert.", 500], headers: {}}
+                                return
                 fs.stat tempname, (statErr, stats) =>
                         if statErr
-                                response.send "Failed to read resulting file name.", 500
+                                callback {data: ["Failed to read resulting file name.", 500], headers: {}}
                                 return
                         stream = fs.createReadStream tempname
                         stream.on "end", =>
                                 fs.unlink tempname
+
                         cacheInstance.createCache tempname, (err, location) ->
-                                response.set "location", location
-                                response.send "Go to #{location}", 302
+                                callback {data: ["Go to #{location}", 302], headers: {"location": location}}
+
+        _conversionDone: (err, cacheInstance, tempname) =>
+                @_createResponse err, cacheInstance, tempname, (responseParams) =>
+                        for response in @_ongoingConversions[cacheInstance.getKey()]
+                                for header, value of responseParams.headers
+                                        response.set(header, value)
+                                [content, code] = responseParams.data
+                                response.send content, code
+                        delete @_ongoingConversions[cacheInstance.getKey()]
 
         convert: (type, filename, response) =>
                 if type not of @converters
@@ -147,14 +164,22 @@ class FileConverter
                                 response.set "location", location
                                 response.send "Go to #{location}", 302
                                 return
+
                         fs.stat filename, (statErr, stats) =>
                                 if statErr
                                         response.send "Failed to read original file name.", 500
                                         return
 
+                                cacheKey = cacheInstance.getKey()
+                                if cacheKey of @_ongoingConversions
+                                        @_ongoingConversions[cacheKey].push response
+                                        return
+                                else
+                                        @_ongoingConversions[cacheKey] = [response]
+
                                 tempname = temp.path {suffix: ".#{suffix}"}
                                 converter.convert filename, @bitrate, tempname, (err) =>
-                                        @_conversionDone err, cacheInstance, tempname, response
+                                        @_conversionDone err, cacheInstance, tempname
 
 
 exports.FileConverterView = class FileConverterView
