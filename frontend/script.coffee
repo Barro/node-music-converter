@@ -10,6 +10,24 @@ PLAYBACK_TYPE = null
 CURRENT_SONG = null
 nextSong = null
 
+class RetryTimeouter
+        constructor: (@minTimeout=1000, @maxTimeout=30000) ->
+                @reset()
+
+        increaseTimeout: =>
+                timeout = @nextTimeout
+                @nextTimeout = timeout + @lastTimeout
+                if @nextTimeout > @maxTimeout
+                        @nextTimeout = @maxTimeout
+                @lastTimeout = timeout
+                return timeout
+
+        reset: =>
+                @nextTimeout = @minTimeout
+                @lastTimeout = @minTimeout
+
+RETRY_TIMEOUTER = new RetryTimeouter()
+
 playHashSong = ->
         if document.location.hash.length <= 1
                 return
@@ -30,25 +48,18 @@ preloadSong = (successCallback) ->
     nextStatus.text(nextSong)
     encodedPath = encodeURIComponent(nextSong)
     songPath = "/file/#{encodedPath}?type=#{PLAYBACK_TYPE}"
+
     request = $.get(songPath)
     errorCallback = =>
-        setTimeout (-> preloadSong(successCallback)), 1000
+        setTimeout (-> preloadSong(successCallback)), RETRY_TIMEOUTER.increaseTimeout()
     request.error errorCallback
     request.success =>
+        RETRY_TIMEOUTER.reset()
         if (successCallback)
             successCallback()
         else
             nextStatus.append("<span style='color: green'>&nbsp;✓</span>")
 
-    # // var player = new Audio();
-    # // var playerContainer = $("#player-preloaded");
-    # // playerContainer.empty();
-    # // playerContainer.append(player);
-    # // var playerJquery = $(player);
-    # // var encodedPath = encodeURIComponent(nextSong);
-    # // playerJquery.append("<source src='/file/" + encodedPath + "?type=ogg' type='audio/ogg' />");
-    # // playerJquery.append("<source src='/file/" + encodedPath + "?type=mp3' type='audio/mpeg' />");
-    # // playerJquery.attr("preload", "auto");
 
 playRandomSong = ->
     song = nextSong
