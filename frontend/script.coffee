@@ -45,13 +45,15 @@ preloadSong = (successCallback) ->
     nextSong = SONGS[item];
     nextStatus = $("#status-next")
     nextStatus.empty()
-    nextStatus.text(nextSong)
-    encodedPath = encodeURIComponent(nextSong)
+    nextStatus.text nextSong
+    encodedPath = encodeURIComponent nextSong
     songPath = "/file/#{encodedPath}?type=#{PLAYBACK_TYPE}"
 
     request = $.get(songPath)
     errorCallback = =>
-        setTimeout (-> preloadSong(successCallback)), RETRY_TIMEOUTER.increaseTimeout()
+        setTimeout (-> preloadSong(successCallback)),
+                RETRY_TIMEOUTER.increaseTimeout()
+
     request.error errorCallback
     request.success =>
         RETRY_TIMEOUTER.reset()
@@ -120,9 +122,33 @@ $(document).ready ->
                 iId = aData[0]
                 playSong iId
 
-    player.player.onpause = ->
+    player.jquery.bind "abort", ->
+        console.log "Aborted!"
+        console.log player.player.error
+        # setTimeout (-> playRandomSong()), RETRY_TIMEOUTER.increaseTimeout()
+    player.jquery.bind "cancel", ->
+        console.log "Canceled!"
+    player.jquery.bind "invalid", ->
+        console.log "Invalid!"
+    player.jquery.bind "stalled", ->
+        console.log "Stalled!"
+    player.jquery.bind "waiting", ->
+        console.log "Waiting!"
+    player.jquery.bind "error", ->
+        console.log "Error!"
+    player.jquery.bind "change", ->
+        console.log "change!"
+    player.jquery.bind "loadeddata", ->
+        console.log "loaddata!"
+
+    player.jquery.bind "volumechange", ->
+        slider = $(".volume-slider")
+        slider.attr("value", player.player.volume * slider.attr("max"))
+        $(".volume-intensity").text(Math.round(100 * player.player.volume))
+
+    player.jquery.bind "pause", ->
         $("#play-control").text "Play"
-    player.player.onplaying = ->
+    player.jquery.bind "playing", ->
         $("#play-control").text "Pause"
 
     $("#next").click ->
@@ -133,3 +159,11 @@ $(document).ready ->
             player.player.play()
         else
             player.player.pause()
+
+    slider = $(".volume-slider")
+    slider.attr("value", player.player.volume * slider.attr("max"))
+    $(".volume-intensity").text(Math.round(100 * player.player.volume))
+    slider.change ->
+        newVolume = @value / (@max - @min)
+        if newVolume != NaN
+                player.player.volume = newVolume
