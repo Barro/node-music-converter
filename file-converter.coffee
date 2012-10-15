@@ -108,7 +108,7 @@ exports.FileCache = class FileCache
 
 
 class FileConverter
-        constructor: (@cache)->
+        constructor: (@log, @cache)->
                 @bitrate = "160k"
                 @converters =
                         mp3: new Mp3Converter()
@@ -119,24 +119,34 @@ class FileConverter
 
         _createResponse: (err, cacheInstance, tempname, callback) =>
                 if err
+                        @log.error "Encoding error: #{err}."
                         fs.exists tempname, (exists) =>
                                 if exists
-                                        fs.unlink tempname
+                                        @log.debug "Unlinking file on error: #{tempname}."
+                                        fs.unlink tempname, (err) =>
+                                                if err
+                                                        @log.warn "Failed to unlink file #{tempname}: #{err}"
                                 callback {data: ["Failed to convert.", 500], headers: {}}
                                 return
                 fs.stat tempname, (statErr, stats) =>
                         if statErr
                                 callback {data: ["Failed to read resulting file name.", 500], headers: {}}
                                 return
+                        @log.debug "Creating read stream for: #{tempname}."
                         stream = fs.createReadStream tempname
                         stream.on "end", =>
-                                fs.unlink tempname
+                                @log.debug "Finished reading #{tempname}."
+                                fs.unlink tempname, (err) =>
+                                        if err
+                                                @log.warn "Failed to unlink file #{tempname} on stream end: #{err}"
 
                         cacheInstance.createCache tempname, (err, location) ->
                                 callback {data: ["Go to #{location}", 302], headers: {"location": location}}
 
         _conversionDone: (err, cacheInstance, tempname) =>
+                @log.debug "Conversion finished. Error: #{err}"
                 @_createResponse err, cacheInstance, tempname, (responseParams) =>
+                        @log.debug "Sending response to clients: #{tempname}."
                         for response in @_ongoingConversions[cacheInstance.getKey()]
                                 for header, value of responseParams.headers
                                         response.set(header, value)
@@ -145,6 +155,7 @@ class FileConverter
                         delete @_ongoingConversions[cacheInstance.getKey()]
 
         convert: (type, filename, response) =>
+                @log.info "Starting conversion of '#{filename}' to type #{type}."
                 if type not of @converters
                         response.send "I do not know how to convert to type #{type}.", 406
                         return
@@ -172,9 +183,11 @@ class FileConverter
 
                                 cacheKey = cacheInstance.getKey()
                                 if cacheKey of @_ongoingConversions
+                                        @log.debug "Adding #{cacheKey} to ongoing encodings."
                                         @_ongoingConversions[cacheKey].push response
                                         return
                                 else
+                                        @log.debug "Creating new ongoing encoding cache key #{cacheKey}."
                                         @_ongoingConversions[cacheKey] = [response]
 
                                 tempname = temp.path {suffix: ".#{suffix}"}
@@ -183,8 +196,8 @@ class FileConverter
 
 
 exports.FileConverterView = class FileConverterView
-        constructor: (@fileDatabase, @cache, @defaultType="mp3") ->
-                @converter = new FileConverter @cache
+        constructor: (@log, @fileDatabase, @cache, @defaultType="mp3") ->
+                @converter = new FileConverter @log, @cache
 
         view: (request, response) =>
                 filename = request.params[0]

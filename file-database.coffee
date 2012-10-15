@@ -2,7 +2,7 @@ fs = require 'fs'
 lazy = require 'lazy'
 
 exports.FileDatabaseView = class FileDatabaseView
-        constructor: ->
+        constructor: (@log) ->
                 @filelist = {}
 
         open: (filelistFile) =>
