@@ -111,8 +111,14 @@ class Player
                         @trigger "pause"
                 @playerElement.bind "play", =>
                         @trigger "resume"
+                @playerElement.bind "ended", =>
+                        @trigger "ended"
                 @playerElement.bind "volumechange", =>
                         @trigger "volumechange", @player.volume
+                @playerElement.bind "timeupdate", =>
+                        @trigger "timeupdate", @player.currentTime, @player.duration
+                @playerElement.bind "durationchange", =>
+                        @trigger "durationchange", @player.duration
 
         play: (song) =>
                 @trigger "play", song
@@ -152,6 +158,19 @@ class Player
 
         setPosition: (value) =>
                 @trigger "position", value
+
+viewTimeString = (total_seconds) ->
+        hours = Math.floor total_seconds / 3600
+        remaining_seconds = total_seconds - hours * 3600
+        minutes = Math.floor remaining_seconds / 60
+        remaining_seconds -= minutes * 60
+        seconds = Math.floor remaining_seconds
+        hours_str = ""
+        if hours > 0
+                hours_str = "#{hours}:"
+
+        time_str = hours_str + _.str.sprintf "%02d:%02d", minutes, seconds
+        return time_str
 
 
 PlayerView = (playerElement, player, songQueue) ->
@@ -201,15 +220,24 @@ PlayerView = (playerElement, player, songQueue) ->
                 [index, file] = song
                 currentSongStatusElement.text file
 
-        slider = $(".volume-slider", playerElement)
+        volumeSlider = $(".volume-slider", playerElement)
         player.on "volumechange", (volume) ->
-                slider.attr "value", volume * slider.attr "max"
+                volumeSlider.attr "value", volume * volumeSlider.attr "max"
                 $(".volume-intensity", playerElement).text Math.round 100 * volume
 
-        slider.bind "change", ->
+        volumeSlider.bind "change", ->
                 me = $(@)
                 newVolume = me.val() / (me.attr("max") - me.attr("min"))
                 player.setVolume newVolume
+
+        positionSlider = $(".position-slider", playerElement)
+        player.on "timeupdate", (currentTime, duration) ->
+                positionSlider.attr "value", currentTime
+
+        durationElement = $(".duration", playerElement)
+        player.on "durationchange", (duration) ->
+                positionSlider.attr "max", duration
+                durationElement.text viewTimeString duration
 
 
 QueueView = (queueElement, queueTable, queue, player) ->
