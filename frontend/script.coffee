@@ -25,22 +25,42 @@ shuffledList = (list) ->
         return shuffled
 
 
-class SongQueue extends Backbone.Events
+class SongQueue
         constructor: ->
+                _.extend @, Backbone.Events
                 @allSongs = []
-                @visibleSongs= []
+                @visibleSongs = []
                 @queuedSongs = []
-                @lastSong = null
                 @playbackFiles = []
+                @nextSong = null
+                @nextLength = 0
 
-        loadSongs: (@allSongs) ->
+        updateAll: (@allSongs) =>
+                @trigger "updateAll", @allSongs
 
         updateVisible: (@visibleSongs) ->
                 @playbackFiles = []
+                @trigger "updateVisible", @visibleSongs
+
+        length: =>
+                length = @queuedSongs.length + @nextLength
+                return length
 
         next: =>
+                next = @peek()
+                @nextSong = null
+                @nextLength = 0
+                if next != null
+                        @trigger "next", next
+                return next
+
+        peek: =>
+                if @nextSong != null
+                        return @nextSong
                 if @queuedSongs.length > 0
                         song = @queuedSongs.shift()
+                        @nextSong = song
+                        @nextLength = 1
                         return song
 
                 if @visibleSongs.length == 0
@@ -52,14 +72,22 @@ class SongQueue extends Backbone.Events
 
                 if @playbackFiles.length == 0
                         @playbackFiles = shuffledList playbackCandidates
-                return @playbackFiles.pop()
+                song = @playbackFiles.pop()
+                @nextSong = song
+                return song
 
         add: (song) =>
                 @queuedSongs.push song
+                # Replace current random song with the first queued song.
+                if @nextSong != null and @nextLength == 0
+                        @nextSong = null
+                        @peek()
+                @trigger "add", song
                 return @queuedSongs.length
 
         remove: (index) =>
                 [removed] = @queuedSongs.splice(index, 1)
+                @trigger "remove", song, index
                 return removed
 
         show: =>
@@ -70,70 +98,118 @@ class PlaybackType
         constructor: (@request, @mime) ->
 
 
-class Player extends Backbone.Events
-        constructor: (@playerElement, @currentSongElement, @nextSongElement, @timeouter, @playbackType) ->
+class Player
+        constructor: (@playerElement, @timeouter, @playbackType) ->
+                _.extend @, Backbone.Events
+                @player = @playerElement.get(0)
+                @currentSong = null
+                @lastPreload = null
+                @_bind()
+
+        _bind: =>
+                @playerElement.bind "pause", =>
+                        @trigger "pause"
+                @playerElement.bind "play", =>
+                        @trigger "resume"
+                @playerElement.bind "volumechange", =>
+                        @trigger "volumechange", @player.volume
 
         play: (song) =>
+                @trigger "play", song
+                [index, file] = song
                 @playerElement.empty()
-                encodedPath = encodeURIComponent song
+                encodedPath = encodeURIComponent file
                 @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
-                player = @playerElement.get(0)
-                player.load()
-                player.play()
+                @player.load()
+                @player.play()
+                @currentSong = file
 
-        _preload: (song, callback) =>
-                encodedPath = encodeURIComponent song
-                songPath = "/file/#{encodedPath}?type=#{@playbackType}"
+        preload: (song) =>
+                if @lastPreload == song
+                        return
+                @lastPreload = song
+                [index, file] = song
+                encodedPath = encodeURIComponent file
+                songPath = "/file/#{encodedPath}?type=#{@playbackType.request}"
+                @trigger "preloadStart", song
                 request = $.get(songPath)
                 errorCallback = =>
-                        setTimeout (-> @preload callback),
+                        setTimeout (=> @preload song),
                                 @timeouter.increaseTimeout()
                 request.error errorCallback
                 request.success =>
-                        @trigger "preload", song
                         @timeouter.reset()
+                        @trigger "preloadOk", song
 
         togglePause: =>
-                @playerElement.pause()
+                if @player.paused
+                        @player.play()
+                else
+                        @player.pause()
 
         setVolume: (value) =>
+                @player.volume = value
 
-        queue: (song) =>
+        setPosition: (value) =>
+                @trigger "position", value
 
-        unqueue: (song) =>
 
 PlayerView = (playerElement, player, songQueue) ->
-        nextSongElement = $("#status-next", playerElement)
-        player.on "preload", (song) ->
-                nextSongElement.append "<span style='color: green'>&nbsp;✓</span>"
+        queueStatus = $("#queue-length", playerElement)
+        songQueue.on "add", (song) ->
+                queueStatus.text songQueue.length()
+        songQueue.on "remove", (song) ->
+                queueStatus.text songQueue.length()
+        songQueue.on "next", (song) ->
+                queueStatus.text songQueue.length()
+
+        songQueue.on "next", (song) ->
+                player.play song
+
+        nextSongButton = $("#next", playerElement)
+        nextSongButton.click ->
+                songQueue.next()
+
+        nextSongStatusElement = $("#status-next", playerElement)
 
         player.on "play", (song) ->
+                player.preload songQueue.peek()
+        songQueue.on "add", (song) ->
+                player.preload songQueue.peek()
 
-        $("#play-control", playerElement).click ->
-                player.togglePaused()
+        lastPreloadSong = null
+        player.on "preloadStart", (song) ->
+                lastPreloadSong = song
+                [index, file] = song
+                nextSongStatusElement.text file
+        player.on "preloadOk", (song) ->
+                if song == lastPreloadSong
+                        nextSongStatusElement.append "<span style='color: green'>&nbsp;✓</span>"
 
-        playerElement.bind "ended", player.next
+        playSongButton = $("#play-control", playerElement)
+        playSongButton.click ->
+                player.togglePause()
 
-        player.jquery.bind "volumechange", ->
-                slider = $(".volume-slider")
-                slider.attr("value", player.player.volume * slider.attr("max"))
-                $(".volume-intensity").text(Math.round(100 * player.player.volume))
+        player.on "pause", ->
+                playSongButton.text "Play"
+        player.on "resume", ->
+                playSongButton.text "Pause"
+        playerElement.bind "ended", songQueue.next
 
-        player.jquery.bind "pause", ->
-                $("#play-control").text "Play"
-        player.jquery.bind "play", ->
-                $("#play-control").text "Pause"
+        currentSongStatusElement = $("#status-current", playerElement)
+        player.on "play", (song) ->
+                [index, file] = song
+                currentSongStatusElement.text file
 
-        $("#next").click ->
-                playRandomSong()
+        slider = $(".volume-slider", playerElement)
+        player.on "volumechange", (volume) ->
+                slider.attr "value", volume * slider.attr "max"
+                $(".volume-intensity", playerElement).text Math.round 100 * volume
 
-        slider = $(".volume-slider")
-        slider.attr("value", player.player.volume * slider.attr("max"))
-        $(".volume-intensity").text(Math.round(100 * player.player.volume))
-        slider.change ->
+        slider.bind "change", ->
                 me = $(@)
                 newVolume = me.val() / (me.attr("max") - me.attr("min"))
-                player.player.volume = newVolume
+                player.setVolume newVolume
 
 
 QueueView = (queueElement, queueTable, queue, player) ->
@@ -148,25 +224,48 @@ QueueView = (queueElement, queueTable, queue, player) ->
                 queueTable.fnDeleteRow iPos
                 player.play song
 
-        $('#playlist tr').live "click", ->
-                aData = oTable.fnGetData( this )
-                iId = aData[0]
-                playSong iId
 
-
-SonglistView = (songlistElement, queue) ->
-        columns = [ { "sTitle": "Song" } ]
+PlaylistView = (playlistElement, songData, player, queue) ->
+        columns = [ { "bSearchable": false, "bVisible": false}, { "sTitle": "Song" } ]
 
         tableProperties =
                 sScrollY: "450px"
                 sDom: "frtiS"
                 bDeferRender: true
-                aaData: queue.allSongs
+                aaData: songData
                 aoColumns: columns
 
-        table = $(songlistElement).dataTable tableProperties
+        table = playlistElement.dataTable tableProperties
 
-        queue.on "next", (song) ->
+        hashChange = ->
+                if document.location.hash.length <= 1
+                        return
+                songName = document.location.hash.substr(1)
+                if songName == player.currentSong
+                        return
+                $(songData).each (element, index) =>
+                        [index, file] = element
+                        if file == songName
+                                player.play element
+                                return false
+
+        hashChange()
+
+        $(window).bind "hashchange", hashChange
+
+        lastIndex = 0
+        player.on "play", (song) ->
+                oldRow = table.fnGetData lastIndex
+                $(oldRow).remove(".playing")
+                [newIndex, file] = song
+                newRow = table.fnGetData newIndex
+                $(newRow).add(".playing")
+
+        $('tr', playlistElement).live "click", ->
+                aData = table.fnGetData @
+                song = aData
+                queue.add song
+
 
 $(document).ready ->
         audio = new Audio();
@@ -181,18 +280,17 @@ $(document).ready ->
 
         playerContainer =  $("#player")
         playerJquery = $("audio", playerContainer)
-        player = playerJquery.get(0)
         timeouter = new RetryTimeouter()
-        playerInstance = new Player playerJquery, $("#status"), $("#status-next"), timeouter, playbackType
+        playerInstance = new Player playerJquery, timeouter, playbackType
         songQueue = new SongQueue()
 
-        #$(window).bind "hashchange", playHashSong
-        if document.location.hash.length > 1
-                console.log "TODO Play hash song."
-        else
-                #preloadSong playRandomSong
+        PlayerView playerContainer, playerInstance, songQueue
 
         $.getJSON "/files", (data) =>
                 songData = []
-                $.each data, (key, value) =>
-                        songData.push([key])
+                $.each data, (key, index) =>
+                        songData.push([index, key])
+
+                songQueue.updateAll songData
+
+                PlaylistView $("#playlist"), songData, playerInstance, songQueue
