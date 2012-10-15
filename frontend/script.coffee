@@ -1,15 +1,3 @@
-getPlayerObjects = ->
-    playerContainer =  $("#player")
-    playerJquery = $("audio", playerContainer)
-    player = playerJquery.get(0)
-    return {player: player, jquery: playerJquery}
-
-SONGS = []
-PLAYBACK_TYPES = {ogg: 'audio/ogg', mp3: 'audio/mpeg'}
-PLAYBACK_TYPE = null
-CURRENT_SONG = null
-nextSong = null
-
 class RetryTimeouter
         constructor: (@minTimeout=1000, @maxTimeout=30000) ->
                 @reset()
@@ -26,144 +14,185 @@ class RetryTimeouter
                 @nextTimeout = @minTimeout
                 @lastTimeout = @minTimeout
 
-RETRY_TIMEOUTER = new RetryTimeouter()
 
-playHashSong = ->
-        if document.location.hash.length <= 1
-                return
-        songName = document.location.hash.substr(1)
-        if songName == CURRENT_SONG
-                return
-        playSong songName
-
-playSong = (song) ->
-        nextSong = song
-        playRandomSong()
-
-preloadSong = (successCallback) ->
-    item = Math.floor(Math.random() * SONGS.length)
-    nextSong = SONGS[item];
-    nextStatus = $("#status-next")
-    nextStatus.empty()
-    nextStatus.text nextSong
-    encodedPath = encodeURIComponent nextSong
-    songPath = "/file/#{encodedPath}?type=#{PLAYBACK_TYPE}"
-
-    request = $.get(songPath)
-    errorCallback = =>
-        setTimeout (-> preloadSong(successCallback)),
-                RETRY_TIMEOUTER.increaseTimeout()
-
-    request.error errorCallback
-    request.success =>
-        RETRY_TIMEOUTER.reset()
-        if (successCallback)
-            successCallback()
-        else
-            nextStatus.append("<span style='color: green'>&nbsp;✓</span>")
+shuffledList = (list) ->
+        shuffled = list.slice()
+        for insert_position in [0..shuffled.length-1]
+                swap_position = Math.floor(Math.random() * (shuffled.length - insert_position))
+                swappable = shuffled[insert_position + swap_position]
+                shuffled[insert_position + swap_position] = shuffled[insert_position]
+                shuffled[insert_position] = swappable
+        return shuffled
 
 
-playRandomSong = ->
-    song = nextSong
-    CURRENT_SONG = song
-    window.location = "#" + song
-    $("#status").text(song)
-    player = getPlayerObjects()
-    player.player.pause()
-    player.jquery.empty()
+class SongQueue extends Backbone.Events
+        constructor: ->
+                @allSongs = []
+                @visibleSongs= []
+                @queuedSongs = []
+                @lastSong = null
+                @playbackFiles = []
 
-    audioType = PLAYBACK_TYPES[PLAYBACK_TYPE]
-    encodedPath = encodeURIComponent(song)
-    player.jquery.append("<source src=\"/file/#{encodedPath}?type=#{PLAYBACK_TYPE}\" type='#{audioType}' />")
+        loadSongs: (@allSongs) ->
 
-    player.player.load()
-    player.player.play()
+        updateVisible: (@visibleSongs) ->
+                @playbackFiles = []
 
-    preloadSong()
+        next: =>
+                if @queuedSongs.length > 0
+                        song = @queuedSongs.shift()
+                        return song
 
-$(document).ready ->
-    audio = new Audio();
-    if (audio.canPlayType("audio/ogg"))
-        PLAYBACK_TYPE = "ogg"
-    else if (audio.canPlayType("audio/mpeg"))
-        PLAYBACK_TYPE = "mp3"
-    else
-        $("#status").text("Your browser does not support Vorbis or MP3")
-        return
+                if @visibleSongs.length == 0
+                        if @allSongs.length == 0
+                                return null
+                        playbackCandidates = @allSongs
+                else
+                        playbackCandidates = @visibleSongs
 
-    player = getPlayerObjects()
-    player.jquery.attr("controls", "controls")
-    player.jquery.bind "ended", playRandomSong
-    $(window).bind "hashchange", playHashSong
+                if @playbackFiles.length == 0
+                        @playbackFiles = shuffledList playbackCandidates
+                return @playbackFiles.pop()
 
-    $.getJSON "/files", (data) =>
-        songData = []
-        $.each data, (key, value) =>
-            songData.push([key])
-            SONGS.push(key)
+        add: (song) =>
+                @queuedSongs.push song
+                return @queuedSongs.length
 
-        if document.location.hash.length > 1
-                playHashSong()
-        else
-                preloadSong playRandomSong
+        remove: (index) =>
+                [removed] = @queuedSongs.splice(index, 1)
+                return removed
 
+        show: =>
+                return @queuedSongs
+
+
+class PlaybackType
+        constructor: (@request, @mime) ->
+
+
+class Player extends Backbone.Events
+        constructor: (@playerElement, @currentSongElement, @nextSongElement, @timeouter, @playbackType) ->
+
+        play: (song) =>
+                @playerElement.empty()
+                encodedPath = encodeURIComponent song
+                @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
+                player = @playerElement.get(0)
+                player.load()
+                player.play()
+
+        _preload: (song, callback) =>
+                encodedPath = encodeURIComponent song
+                songPath = "/file/#{encodedPath}?type=#{@playbackType}"
+                request = $.get(songPath)
+                errorCallback = =>
+                        setTimeout (-> @preload callback),
+                                @timeouter.increaseTimeout()
+                request.error errorCallback
+                request.success =>
+                        @trigger "preload", song
+                        @timeouter.reset()
+
+        togglePause: =>
+                @playerElement.pause()
+
+        setVolume: (value) =>
+
+        queue: (song) =>
+
+        unqueue: (song) =>
+
+PlayerView = (playerElement, player, songQueue) ->
+        nextSongElement = $("#status-next", playerElement)
+        player.on "preload", (song) ->
+                nextSongElement.append "<span style='color: green'>&nbsp;✓</span>"
+
+        player.on "play", (song) ->
+
+        $("#play-control", playerElement).click ->
+                player.togglePaused()
+
+        playerElement.bind "ended", player.next
+
+        player.jquery.bind "volumechange", ->
+                slider = $(".volume-slider")
+                slider.attr("value", player.player.volume * slider.attr("max"))
+                $(".volume-intensity").text(Math.round(100 * player.player.volume))
+
+        player.jquery.bind "pause", ->
+                $("#play-control").text "Play"
+        player.jquery.bind "play", ->
+                $("#play-control").text "Pause"
+
+        $("#next").click ->
+                playRandomSong()
+
+        slider = $(".volume-slider")
+        slider.attr("value", player.player.volume * slider.attr("max"))
+        $(".volume-intensity").text(Math.round(100 * player.player.volume))
+        slider.change ->
+                me = $(@)
+                newVolume = me.val() / (me.attr("max") - me.attr("min"))
+                player.player.volume = newVolume
+
+
+QueueView = (queueElement, queueTable, queue, player) ->
+        queue.on "next", (song) ->
+
+
+        $("tr", queueElement).live "click", ->
+                aPos = queueTable.fnGetPosition @
+                iPos = aPos[0]
+
+                song = queue.remove aPos
+                queueTable.fnDeleteRow iPos
+                player.play song
+
+        $('#playlist tr').live "click", ->
+                aData = oTable.fnGetData( this )
+                iId = aData[0]
+                playSong iId
+
+
+SonglistView = (songlistElement, queue) ->
         columns = [ { "sTitle": "Song" } ]
 
         tableProperties =
                 sScrollY: "450px"
                 sDom: "frtiS"
                 bDeferRender: true
-                aaData: songData
+                aaData: queue.allSongs
                 aoColumns: columns
 
-        oTable = $('#playlist').dataTable tableProperties
-        $('#playlist tr').live "click", ->
-                aData = oTable.fnGetData( this )
-                iId = aData[0]
-                playSong iId
+        table = $(songlistElement).dataTable tableProperties
 
-    player.jquery.bind "abort", ->
-        console.log "Aborted!"
-        console.log player.player.error
-        # setTimeout (-> playRandomSong()), RETRY_TIMEOUTER.increaseTimeout()
-    player.jquery.bind "cancel", ->
-        console.log "Canceled!"
-    player.jquery.bind "invalid", ->
-        console.log "Invalid!"
-    player.jquery.bind "stalled", ->
-        console.log "Stalled!"
-    player.jquery.bind "waiting", ->
-        console.log "Waiting!"
-    player.jquery.bind "error", ->
-        console.log "Error!"
-    player.jquery.bind "change", ->
-        console.log "change!"
-    player.jquery.bind "loadeddata", ->
-        console.log "loaddata!"
+        queue.on "next", (song) ->
 
-    player.jquery.bind "volumechange", ->
-        slider = $(".volume-slider")
-        slider.attr("value", player.player.volume * slider.attr("max"))
-        $(".volume-intensity").text(Math.round(100 * player.player.volume))
-
-    player.jquery.bind "pause", ->
-        $("#play-control").text "Play"
-    player.jquery.bind "playing", ->
-        $("#play-control").text "Pause"
-
-    $("#next").click ->
-        playRandomSong()
-
-    $("#play-control").click ->
-        if (player.player.paused)
-            player.player.play()
+$(document).ready ->
+        audio = new Audio();
+        playbackType = null
+        if (audio.canPlayType("audio/ogg"))
+                playbackType = new PlaybackType "ogg", "audio/ogg"
+        else if (audio.canPlayType("audio/mpeg"))
+                playbackType = new PlaybackType "mp3", "audio/mpeg"
         else
-            player.player.pause()
+                $("#status").text("Your browser does not support Vorbis or MP3")
+                return
 
-    slider = $(".volume-slider")
-    slider.attr("value", player.player.volume * slider.attr("max"))
-    $(".volume-intensity").text(Math.round(100 * player.player.volume))
-    slider.change ->
-        me = $(@)
-        newVolume = me.val() / (me.attr("max") - me.attr("min"))
-        player.player.volume = newVolume
+        playerContainer =  $("#player")
+        playerJquery = $("audio", playerContainer)
+        player = playerJquery.get(0)
+        timeouter = new RetryTimeouter()
+        playerInstance = new Player playerJquery, $("#status"), $("#status-next"), timeouter, playbackType
+        songQueue = new SongQueue()
+
+        #$(window).bind "hashchange", playHashSong
+        if document.location.hash.length > 1
+                console.log "TODO Play hash song."
+        else
+                #preloadSong playRandomSong
+
+        $.getJSON "/files", (data) =>
+                songData = []
+                $.each data, (key, value) =>
+                        songData.push([key])
