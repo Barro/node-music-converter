@@ -18,7 +18,7 @@ class RetryTimeouter
 shuffledList = (list) ->
         shuffled = list.slice()
         for insert_position in [0..shuffled.length-1]
-                swap_position = Math.floor(Math.random() * (shuffled.length - insert_position))
+                swap_position = parseInt Math.random() * (shuffled.length - insert_position)
                 swappable = shuffled[insert_position + swap_position]
                 shuffled[insert_position + swap_position] = shuffled[insert_position]
                 shuffled[insert_position] = swappable
@@ -160,11 +160,11 @@ class Player
                 @trigger "position", value
 
 viewTimeString = (total_seconds) ->
-        hours = Math.floor total_seconds / 3600
+        hours = parseInt total_seconds / 3600
         remaining_seconds = total_seconds - hours * 3600
-        minutes = Math.floor remaining_seconds / 60
+        minutes = parseInt remaining_seconds / 60
         remaining_seconds -= minutes * 60
-        seconds = Math.floor remaining_seconds
+        seconds = parseInt remaining_seconds
         hours_str = ""
         if hours > 0
                 hours_str = "#{hours}:"
@@ -231,8 +231,13 @@ PlayerView = (playerElement, player, songQueue) ->
                 player.setVolume newVolume
 
         positionSlider = $(".position-slider", playerElement)
+        positionElement = $(".current-position", playerElement)
         player.on "timeupdate", (currentTime, duration) ->
                 positionSlider.attr "value", currentTime
+                positionElement.text viewTimeString currentTime
+        positionSlider.bind "change", ->
+                me = $(@)
+                player.currentTime = me.val()
 
         durationElement = $(".duration", playerElement)
         player.on "durationchange", (duration) ->
