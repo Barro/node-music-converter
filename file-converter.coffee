@@ -128,6 +128,7 @@ class FileConverter
                                                         @log.warn "Failed to unlink file #{tempname}: #{err}"
                                 callback {data: ["Failed to convert.", 500], headers: {}}
                                 return
+                        return
                 fs.stat tempname, (statErr, stats) =>
                         if statErr
                                 callback {data: ["Failed to read resulting file name.", 500], headers: {}}
