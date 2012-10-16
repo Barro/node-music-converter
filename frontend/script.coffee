@@ -156,8 +156,17 @@ class Player
         setVolume: (value) =>
                 @player.volume = value
 
+        getVolume: =>
+                return @player.volume
+
         setPosition: (value) =>
-                @trigger "position", value
+                @player.currentTime = value
+
+        getPosition: =>
+                return @player.currentTime
+
+        isPlaying: =>
+                return not (@player.paused and @player.readyState == @player.HAVE_NOTHING)
 
 viewTimeString = (total_seconds) ->
         hours = parseInt total_seconds / 3600
@@ -207,13 +216,17 @@ PlayerView = (playerElement, player, songQueue) ->
 
         playSongButton = $("#play-control", playerElement)
         playSongButton.click ->
-                player.togglePause()
+                if player.isPlaying()
+                        player.togglePause()
+                else
+                        queue.next()
 
         player.on "pause", ->
                 playSongButton.text "Play"
         player.on "resume", ->
                 playSongButton.text "Pause"
-        playerElement.bind "ended", songQueue.next
+        player.on "ended", ->
+                songQueue.next()
 
         currentSongStatusElement = $("#status-current", playerElement)
         player.on "play", (song) ->
@@ -221,9 +234,13 @@ PlayerView = (playerElement, player, songQueue) ->
                 currentSongStatusElement.text file
 
         volumeSlider = $(".volume-slider", playerElement)
-        player.on "volumechange", (volume) ->
+        showVolume = (volume) ->
                 volumeSlider.attr "value", volume * volumeSlider.attr "max"
                 $(".volume-intensity", playerElement).text Math.round 100 * volume
+        player.on "volumechange", (volume) ->
+                showVolume volume
+
+        showVolume player.getVolume()
 
         volumeSlider.bind "change", ->
                 me = $(@)
@@ -235,9 +252,12 @@ PlayerView = (playerElement, player, songQueue) ->
         player.on "timeupdate", (currentTime, duration) ->
                 positionSlider.attr "value", currentTime
                 positionElement.text viewTimeString currentTime
+
         positionSlider.bind "change", ->
                 me = $(@)
-                player.currentTime = me.val()
+                player.setPosition me.val()
+
+        positionSlider.val player.getPosition()
 
         durationElement = $(".duration", playerElement)
         player.on "durationchange", (duration) ->
@@ -258,7 +278,7 @@ QueueView = (queueElement, queueTable, queue, player) ->
                 player.play song
 
 
-PlaylistView = (playlistElement, songData, player, queue) ->
+PlaylistView = (playlistElement, songData, player, queue, router) ->
         columns = [ { "bSearchable": false, "bVisible": false}, { "sTitle": "Song" } ]
 
         tableProperties =
@@ -270,21 +290,19 @@ PlaylistView = (playlistElement, songData, player, queue) ->
 
         table = playlistElement.dataTable tableProperties
 
-        hashChange = ->
-                if document.location.hash.length <= 1
+        hashChange = (songName) ->
+                if (not player.isPlaying()) and (not songName?)
+                        queue.next()
                         return
-                songName = document.location.hash.substr(1)
                 if songName == player.currentSong
                         return
-                $(songData).each (element, index) =>
+                $(songData).each (index, element) =>
                         [index, file] = element
                         if file == songName
                                 player.play element
                                 return false
 
-        hashChange()
-
-        $(window).bind "hashchange", hashChange
+        router.on "play", hashChange
 
         lastIndex = 0
         player.on "play", (song) ->
@@ -293,11 +311,22 @@ PlaylistView = (playlistElement, songData, player, queue) ->
                 [newIndex, file] = song
                 newRow = table.fnGetData newIndex
                 $(newRow).add(".playing")
+                router.navigate "/" + file
 
         $('tr', playlistElement).live "click", ->
                 aData = table.fnGetData @
                 song = aData
                 queue.add song
+
+class PlayerRouter extends Backbone.Router
+        routes:
+                "": 'playSong'
+                "*filename": 'playSong'
+
+        playSong: (filename) =>
+                if filename?
+                        filename = "/" + decodeURIComponent(filename)
+                @trigger "play", filename
 
 
 $(document).ready ->
@@ -319,6 +348,8 @@ $(document).ready ->
 
         PlayerView playerContainer, playerInstance, songQueue
 
+        router = new PlayerRouter()
+
         $.getJSON "/files", (data) =>
                 songData = []
                 $.each data, (key, index) =>
@@ -326,4 +357,5 @@ $(document).ready ->
 
                 songQueue.updateAll songData
 
-                PlaylistView $("#playlist"), songData, playerInstance, songQueue
+                PlaylistView $("#playlist"), songData, playerInstance, songQueue, router
+                Backbone.history.start()
