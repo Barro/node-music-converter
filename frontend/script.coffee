@@ -40,6 +40,7 @@ class SongQueue
 
         updateVisible: (@visibleSongs) ->
                 @playbackFiles = []
+                @_removeRandom()
                 @trigger "updateVisible", @visibleSongs
 
         length: =>
@@ -76,12 +77,15 @@ class SongQueue
                 @nextSong = song
                 return song
 
-        add: (song) =>
-                @queuedSongs.push song
+        _removeRandom: =>
                 # Replace current random song with the first queued song.
                 if @nextSong != null and @nextLength == 0
                         @nextSong = null
                         @peek()
+
+        add: (song) =>
+                @queuedSongs.push song
+                @_removeRandom()
                 @trigger "add", song
                 return @queuedSongs.length
 
@@ -289,6 +293,10 @@ PlaylistView = (playlistElement, songData, player, queue, router) ->
                 aoColumns: columns
 
         table = playlistElement.dataTable tableProperties
+
+        table.on "filter", (event, settings) =>
+                queue.updateVisible $.map settings.aiDisplay, (value, index) =>
+                        return [ songData[value] ]
 
         hashChange = (songName) ->
                 if (not player.isPlaying()) and (not songName?)
