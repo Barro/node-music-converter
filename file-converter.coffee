@@ -7,6 +7,7 @@ temp = require 'temp'
 # 1 minute of 160 kbps music.
 FAILED_CONVERSION_IS_OK_SIZE = 60 * 160 * 1000 / 8
 
+
 class VorbisConverter
         suffix: =>
                 return "ogg"
@@ -67,6 +68,7 @@ class Mp3Converter
                                         callback "Failed file conversion. Not enough data converted (#{stats.size} bytes)."
                                 return
                         callback null
+
 
 class FileCacheInstance
         constructor: (@cache, @conversionParams) ->

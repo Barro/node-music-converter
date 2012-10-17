@@ -49,11 +49,14 @@ class SongQueue
 
         next: =>
                 next = @peek()
-                @nextSong = null
-                @nextLength = 0
+                @clearNext()
                 if next != null
                         @trigger "next", next
                 return next
+
+        clearNext: =>
+                @nextSong = null
+                @nextLength = 0
 
         peek: =>
                 if @nextSong != null
@@ -125,7 +128,6 @@ class Player
                         @trigger "durationchange", @player.duration
 
         play: (song) =>
-                @trigger "play", song
                 [index, file] = song
                 @playerElement.empty()
                 encodedPath = encodeURIComponent file
@@ -133,6 +135,7 @@ class Player
                 @player.load()
                 @player.play()
                 @currentSong = file
+                @trigger "play", song
 
         preload: (song) =>
                 if @lastPreload == song
@@ -144,8 +147,7 @@ class Player
                 @trigger "preloadStart", song
                 request = $.get(songPath)
                 errorCallback = =>
-                        setTimeout (=> @preload song),
-                                @timeouter.increaseTimeout()
+                        setTimeout (=> @trigger "preloadFailed", song), @timeouter.increaseTimeout()
                 request.error errorCallback
                 request.success =>
                         @timeouter.reset()
@@ -170,6 +172,8 @@ class Player
                 return @player.currentTime
 
         isPlaying: =>
+                if @player.networkState == @player.NETWORK_NO_SOURCE
+                        return false
                 return not (@player.paused and @player.readyState == @player.HAVE_NOTHING)
 
 viewTimeString = (total_seconds) ->
@@ -214,16 +218,26 @@ PlayerView = (playerElement, player, songQueue) ->
                 lastPreloadSong = song
                 [index, file] = song
                 nextSongStatusElement.text file
+
+        player.on "preloadFailed", (song) ->
+                songQueue.clearNext()
+                newSong = songQueue.peek()
+                lastPreloadSong = newSong
+                player.preload newSong
+
         player.on "preloadOk", (song) ->
                 if song == lastPreloadSong
                         nextSongStatusElement.append "<span style='color: green'>&nbsp;✓</span>"
+
+                if not player.isPlaying()
+                        player.play song
 
         playSongButton = $("#play-control", playerElement)
         playSongButton.click ->
                 if player.isPlaying()
                         player.togglePause()
                 else
-                        queue.next()
+                        songQueue.next()
 
         player.on "pause", ->
                 playSongButton.text "Play"
