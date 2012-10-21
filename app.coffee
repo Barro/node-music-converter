@@ -45,4 +45,6 @@ converter = new FileConverter.FileConverterView logger, files, cache
 
 app.get '/file/*', converter.view
 
-app.listen argv.port
+server = app.listen argv.port
+server.on "listening", (err, value) ->
+        console.log "Listening to port #{argv.port}."

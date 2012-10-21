@@ -127,15 +127,17 @@ class Player
                 @playerElement.bind "durationchange", =>
                         @trigger "durationchange", @player.duration
 
+                @playerElement.bind "loadeddata", =>
+                        @player.play()
+                        @trigger "play", song
+
         play: (song) =>
                 [index, file] = song
                 @playerElement.empty()
                 encodedPath = encodeURIComponent file
                 @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
                 @player.load()
-                @player.play()
                 @currentSong = file
-                @trigger "play", song
 
         preload: (song) =>
                 if @lastPreload == song
