@@ -35,8 +35,10 @@ app.get '/', (req, res) ->
 
 FileDatabase = require './file-database'
 
+Playlist = require "./playlist"
+
 files = new FileDatabase.FileDatabaseView logger
-files.open datafile
+
 app.get '/files', files.view
 
 FileConverter = require './file-converter'
@@ -45,6 +47,12 @@ converter = new FileConverter.FileConverterView logger, files, cache
 
 app.get '/file/*', converter.view
 
-server = app.listen argv.port
-server.on "listening", (err, value) ->
-        console.log "Listening to port #{argv.port}."
+parser = new Playlist.Parser()
+parser.parse datafile, (err, result) ->
+        if err
+                logger.error "Failed to read data file: #{err}"
+                return
+        files.open result
+        server = app.listen argv.port
+        server.on "listening", (err, value) ->
+                console.log "Listening to port #{argv.port}."

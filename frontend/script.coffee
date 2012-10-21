@@ -129,7 +129,7 @@ class Player
 
                 @playerElement.bind "loadeddata", =>
                         @player.play()
-                        @trigger "play", song
+                        @trigger "play", @currentSong
 
         play: (song) =>
                 [index, file] = song
@@ -137,7 +137,7 @@ class Player
                 encodedPath = encodeURIComponent file
                 @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
                 @player.load()
-                @currentSong = file
+                @currentSong = song
 
         preload: (song) =>
                 if @lastPreload == song
@@ -285,9 +285,14 @@ PlayerView = (playerElement, player, songQueue) ->
                 durationElement.text viewTimeString duration
 
 
-QueueView = (queueElement, queueTable, queue, player) ->
+QueueView = (queueButton, queueElement, queue, player) ->
         queue.on "next", (song) ->
+                # remove from queue
 
+        queueButton.on "click", ->
+                # show queue
+
+        table = null
 
         $("tr", queueElement).live "click", ->
                 aPos = queueTable.fnGetPosition @
@@ -318,7 +323,8 @@ PlaylistView = (playlistElement, songData, player, queue, router) ->
                 if (not player.isPlaying()) and (not songName?)
                         queue.next()
                         return
-                if songName == player.currentSong
+                [index, file] = player.currentSong
+                if songName == file
                         return
                 $(songData).each (index, element) =>
                         [index, file] = element
@@ -374,10 +380,12 @@ $(document).ready ->
 
         router = new PlayerRouter()
 
+        QueueView $("#toggle-queue"), $("#queue"), songQueue, playerInstance
+
         $.getJSON "/files", (data) =>
                 songData = []
-                $.each data, (key, index) =>
-                        songData.push([index, key])
+                $.each data, (index, value) =>
+                        songData.push([index, value.filename])
 
                 songQueue.updateAll songData
 

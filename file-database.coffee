@@ -3,19 +3,32 @@ lazy = require 'lazy'
 
 exports.FileDatabaseView = class FileDatabaseView
         constructor: (@log) ->
-                @filelist = {}
+                @filedata = []
+                @filenames = {}
 
-        open: (filelistFile) =>
-                filereader = new lazy fs.createReadStream(filelistFile)
-                filereader.lines.forEach (filenameBuffer) =>
-                        filename = filenameBuffer.toString "utf-8"
-                        @filelist[filename] = true
+        open: (files) =>
+                @filedata = []
+                @filenames = {}
+
+                for fileinfo in files
+                        if not fileinfo.filename
+                                continue
+                        file =
+                                filename: fileinfo.filename
+                        if fileinfo.artist
+                                file.artist = fileinfo.artist
+                        if fileinfo.title
+                                file.title = fileinfo.title
+                        if fileinfo.album
+                                file.album = fileinfo.album
+                        @filedata.push file
+                        @filenames[fileinfo.filename] = file
 
         exists: (filename) =>
-                return filename of @filelist
+                return filename of @filenames
 
         getPath: (filename) =>
                 return filename
 
         view: (request, response) =>
-                response.json @filelist
+                response.json @filedata

@@ -15,7 +15,8 @@
     "jade": "0.27.x",
     "node-fs": "0.1.x",
     "stylus": "0.29.x",
-    "winston": "0.6.x"
+    "winston": "0.6.x",
+    "underscore.string": "2.3.x"
   },
   "noAnalyze": true,
   "devDependencies": {
