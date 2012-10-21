@@ -219,7 +219,8 @@ PlayerView = (playerElement, player, songQueue) ->
         player.on "preloadStart", (song) ->
                 lastPreloadSong = song
                 [index, file] = song
-                nextSongStatusElement.text file
+                newsong = $("<span class='song-name'></span>").text file
+                nextSongStatusElement.html newsong
 
         player.on "preloadFailed", (song) ->
                 songQueue.clearNext()
@@ -251,7 +252,8 @@ PlayerView = (playerElement, player, songQueue) ->
         currentSongStatusElement = $("#status-current", playerElement)
         player.on "play", (song) ->
                 [index, file] = song
-                currentSongStatusElement.text file
+                thisSong = $("<span class='song-name'></span>").text file
+                currentSongStatusElement.html thisSong
 
         volumeSlider = $(".volume-slider", playerElement)
         showVolume = (volume) ->
@@ -307,7 +309,7 @@ PlaylistView = (playlistElement, songData, player, queue, router) ->
         columns = [ { "bSearchable": false, "bVisible": false}, { "sTitle": "Song" } ]
 
         tableProperties =
-                sScrollY: "450px"
+                sScrollY: "430px"
                 sDom: "frtiS"
                 bDeferRender: true
                 aaData: songData
@@ -319,13 +321,17 @@ PlaylistView = (playlistElement, songData, player, queue, router) ->
                 queue.updateVisible $.map settings.aiDisplay, (value, index) =>
                         return [ songData[value] ]
 
+        lastHashChange = null
+
         hashChange = (songName) ->
+                lastHashChange = songName
                 if (not player.isPlaying()) and (not songName?)
                         queue.next()
                         return
-                [index, file] = player.currentSong
-                if songName == file
-                        return
+                if player.currentSong
+                        [index, file] = player.currentSong
+                        if songName == file
+                                return
                 $(songData).each (index, element) =>
                         [index, file] = element
                         if file == songName
@@ -341,7 +347,13 @@ PlaylistView = (playlistElement, songData, player, queue, router) ->
                 [newIndex, file] = song
                 newRow = table.fnGetData newIndex
                 $(newRow).add(".playing")
-                router.navigate "/" + file
+
+        lastSong = null
+
+        player.on "play", (song) ->
+                [index, file] = song
+                if lastHashChange != file
+                        router.navigate "/" + file
 
         $('tr', playlistElement).live "click", ->
                 aData = table.fnGetData @
