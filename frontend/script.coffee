@@ -421,6 +421,12 @@ class Search
                 @worker.postMessage {type: "search", searchId: @searchId, value: string}
 
 
+HotkeysView = (player, queue) ->
+        $(document).bind "keypress.b", ->
+                queue.next()
+        $(document).bind "keypress.x", ->
+                player.togglePause()
+
 $(document).ready ->
         audio = new Audio();
         playbackType = null
@@ -438,7 +444,9 @@ $(document).ready ->
         playerInstance = new Player playerJquery, timeouter, playbackType
         songQueue = new SongQueue()
 
+
         PlayerView playerContainer, playerInstance, songQueue
+        HotkeysView playerInstance, songQueue
 
         router = new PlayerRouter()
 
