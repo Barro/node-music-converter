@@ -305,12 +305,12 @@ QueueView = (queueButton, queueElement, queue, player) ->
                 player.play song
 
 
-PlaylistView = (playlistElement, songData, player, queue, router) ->
-        columns = [ { "bSearchable": false, "bVisible": false}, { "sTitle": "Song" } ]
+PlaylistView = (playlistElement, songData, player, queue, router, search) ->
+        columns = [ { "bSearchable": false, "bVisible": false}, { "sTitle": "Song", "bSortable": false } ]
 
         tableProperties =
                 sScrollY: "430px"
-                sDom: "frtiS"
+                sDom: "rtiS"
                 bDeferRender: true
                 aaData: songData
                 aoColumns: columns
@@ -360,6 +360,22 @@ PlaylistView = (playlistElement, songData, player, queue, router) ->
                 song = aData
                 queue.add song
 
+        table.fnFilter = (string) ->
+                oSettings = @fnSettings()
+                # Tell the draw function we have been filtering
+                search.search string, (result) =>
+                        oSettings.bFiltered = true
+                        oSettings.aiDisplay = result
+                        $(oSettings.oInstance).trigger('filter', oSettings);
+                        # Redraw the table
+                        oSettings._iDisplayStart = 0;
+                        @_fnCalculateEnd oSettings
+                        @_fnDraw oSettings
+
+        $("#search").keyup ->
+                table.fnFilter $("#search").val()
+
+
 class PlayerRouter extends Backbone.Router
         routes:
                 "": 'playSong'
@@ -369,6 +385,40 @@ class PlayerRouter extends Backbone.Router
                 if filename?
                         filename = "/" + decodeURIComponent(filename)
                 @trigger "play", filename
+
+
+class Search
+        constructor: ->
+                _.extend @, Backbone.Events
+                @worker = new Worker "frontend/search.js"
+                @worker.onmessage = (event) =>
+                        @_handle event.data
+                @searchId = 0
+                @searchCallbacks = {}
+
+        _handle: (data) =>
+                if data.type == "initialize"
+                        # "initialize OK"
+                else if data.type == "result"
+                        @_handleResult data
+                else
+                        throw new Error "Unknown message type #{data.type}"
+
+        _handleResult: (result) =>
+                callback = @searchCallbacks[result.searchId]
+                delete @searchCallbacks[result.searchId]
+                # Only accept results from the latest search.
+                if result.searchId == @searchId
+                        matches = result.matches
+                        callback matches
+
+        initialize: (songs) =>
+                @worker.postMessage {type: "initialize", songs: songs}
+
+        search: (string, callback) =>
+                @searchId++
+                @searchCallbacks[@searchId] = callback
+                @worker.postMessage {type: "search", searchId: @searchId, value: string}
 
 
 $(document).ready ->
@@ -394,12 +444,17 @@ $(document).ready ->
 
         QueueView $("#toggle-queue"), $("#queue"), songQueue, playerInstance
 
+        search = new Search()
+
         $.getJSON "/files", (data) =>
                 songData = []
                 $.each data, (index, value) =>
                         songData.push([index, value.filename])
 
+                search.initialize data
+
                 songQueue.updateAll songData
 
-                PlaylistView $("#playlist"), songData, playerInstance, songQueue, router
+                PlaylistView $("#playlist"), songData, playerInstance, songQueue, router, search
                 Backbone.history.start()
+
