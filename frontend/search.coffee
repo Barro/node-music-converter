@@ -1,13 +1,39 @@
-createSearchList = (value) ->
-        searchValue = value.replace(/^\s+/, '')
-        searchValue = searchValue.replace(/\s+$/, '')
-        keywords = searchValue.split " "
+Identifier =
+        ALBUM: "a"
+        TITLE: "t"
+        ARTIST: "r"
+
+normalizeKey = (value) ->
+        normalized = value
+        normalized = normalized.replace(/\s+/, '-')
+        normalized = normalized.replace(/-+/, '-')
+        normalized = normalized.replace(/^-+/, '')
+        normalized = normalized.replace(/-+$/, '')
+
+        normalized = normalized.toLowerCase()
+
+        normalized = normalized.replace("album:", "#{Identifier.ALBUM}:")
+        normalized = normalized.replace("title:", "#{Identifier.TITLE}:")
+        normalized = normalized.replace("artist:", "#{Identifier.ARTIST}:")
+
+        return normalized
+
+
+parseKeywords = (searchValue) ->
+        cleaned = searchValue.replace(/^\s+/, '')
+        cleaned = cleaned.replace(/\s+$/, '')
+        keywords = cleaned.split /\s+/
         keywordsNormalized = []
         for keyword in keywords
                 if keyword == ""
                         continue
-                keywordsNormalized.push keyword.toLowerCase()
-        keywordsNormalized.sort (a, b) ->
+                keywordsNormalized.push normalizeKey keyword
+        return keywordsNormalized
+
+
+createSearchList = (keywords) ->
+        unorderedKeywords = [keyword for keyword in keywords]
+        unorderedKeywords.sort (a, b) ->
                 if (b.length - a.length) == 0
                         if a == b
                                 return 0
@@ -18,7 +44,7 @@ createSearchList = (value) ->
                 return b.length - a.length
         lastKeyword = null
         keywordsUnique = []
-        for keyword in keywordsNormalized
+        for keyword in unorderedKeywords
                 if keyword != lastKeyword
                         keywordsUnique.push keyword
                 lastKeyword = keyword
@@ -28,14 +54,14 @@ createSearchList = (value) ->
 createSearchIndex = (song) ->
         index = song.filename.toLowerCase()
         if song.album
-                album = song.album.toLowerCase()
-                index += " album:#{album}"
+                album = normalizeKey song.album
+                index += " #{Identifier.ALBUM}:#{album}"
         if song.title
-                title = song.title.toLowerCase()
-                index += " title:#{title}"
+                title = normalizeKey song.title
+                index += " #{Identifier.TITLE}:#{title}"
         if song.artist
-                artist = song.artist.toLowerCase()
-                index += " artist:#{artist}"
+                artist = normalizeKey song.artist
+                index += " #{Identifier.ARTIST}:#{artist}"
         return index
 
 
@@ -53,30 +79,53 @@ class SearchCache
                         @searchDatabase.push createSearchIndex song
                         # @searchDatabase.push song.filename
 
-        search: (value) =>
-                keywords = createSearchList value
-                cacheKey = keywords.join " "
-                if cacheKey of @searchCache
-                        return @searchCache[cacheKey]
-
-                baseCacheKey = cacheKey
+        _getBaseCache: (key) =>
+                baseCacheKey = key
                 searchIndexes = @searchCache[""]
                 while baseCacheKey != ""
                         if baseCacheKey of @searchCache
                                 searchIndexes = @searchCache[baseCacheKey]
                                 break
                         baseCacheKey =  baseCacheKey.substring 0, baseCacheKey.length - 1
+                return searchIndexes
+
+
+        search: (value) =>
+                keywords = parseKeywords value
+                searchWords = createSearchList keywords
+
+                searchKey = searchWords.join " "
+                if searchKey of @searchCache
+                        return @searchCache[searchKey]
+
+                keywordKey = keywords.join " "
+                if keywordKey of @searchCache
+                        return @searchCache[keywordKey]
+
+                searchIndexes = @_getBaseCache searchKey
+                if keywordKey != searchKey
+                        keywordIndexes = @_getBaseCache keywordKey
+                        if keywordIndexes.length < searchIndexes.length
+                                searchIndexes = keywordIndexes
+
                 result = []
                 for index in searchIndexes
                         haystack = @searchDatabase[index]
                         found = true
-                        for keyword in keywords
+                        for keyword in searchWords
                                 if haystack.indexOf(keyword) == -1
                                         found = false
                                         break
                         if found == true
                                 result.push index
-                @searchCache[cacheKey] = result
+
+                # Save some memory by not creating a new list if all items
+                # are in the older list.
+                if result.length == searchIndexes.length
+                        result = searchIndexes
+
+                @searchCache[keywordKey] = result
+                @searchCache[searchKey] = result
                 return result
 
 
