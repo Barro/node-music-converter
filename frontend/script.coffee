@@ -372,8 +372,15 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                         @_fnCalculateEnd oSettings
                         @_fnDraw oSettings
 
+        lastValue = $("#search").val()
+        if lastValue != ""
+                table.fnFilter lastValue
         $("#search").keyup ->
-                table.fnFilter $("#search").val()
+                searchValue = $("#search").val()
+                if searchValue == lastValue
+                        return
+                lastValue = searchValue
+                table.fnFilter searchValue
 
 
 class PlayerRouter extends Backbone.Router
@@ -401,6 +408,8 @@ class Search
                         # "initialize OK"
                 else if data.type == "result"
                         @_handleResult data
+                else if data.type == "message"
+                        console.log data.message
                 else
                         throw new Error "Unknown message type #{data.type}"
 

@@ -16,7 +16,8 @@
     "node-fs": "0.1.x",
     "stylus": "0.29.x",
     "winston": "0.6.x",
-    "underscore.string": "2.3.x"
+    "underscore.string": "2.3.x",
+    "unorm": "1.0.x"
   },
   "noAnalyze": true,
   "devDependencies": {

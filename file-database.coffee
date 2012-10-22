@@ -1,5 +1,6 @@
 fs = require 'fs'
 lazy = require 'lazy'
+unorm = require 'unorm'
 
 exports.FileDatabaseView = class FileDatabaseView
         constructor: (@log) ->
@@ -16,11 +17,11 @@ exports.FileDatabaseView = class FileDatabaseView
                         file =
                                 filename: fileinfo.filename
                         if fileinfo.artist
-                                file.artist = fileinfo.artist
+                                file.artist = unorm.nfkd fileinfo.artist
                         if fileinfo.title
-                                file.title = fileinfo.title
+                                file.title = unorm.nfkd fileinfo.title
                         if fileinfo.album
-                                file.album = fileinfo.album
+                                file.album = unorm.nfkd fileinfo.album
                         @filedata.push file
                         @filenames[fileinfo.filename] = file
 

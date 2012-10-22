@@ -1,3 +1,11 @@
+importScripts "/external/js/unorm.min.js"
+
+log = (message) ->
+        data =
+                type: "message"
+                message: message
+        self.postMessage data
+
 Identifier =
         ALBUM: "a"
         TITLE: "t"
@@ -20,7 +28,8 @@ normalizeKey = (value) ->
 
 
 parseKeywords = (searchValue) ->
-        cleaned = searchValue.replace(/^\s+/, '')
+        cleaned = UNorm.nfkd searchValue
+        cleaned = cleaned.replace(/^\s+/, '')
         cleaned = cleaned.replace(/\s+$/, '')
         keywords = cleaned.split /\s+/
         keywordsNormalized = []
@@ -32,7 +41,7 @@ parseKeywords = (searchValue) ->
 
 
 createSearchList = (keywords) ->
-        unorderedKeywords = [keyword for keyword in keywords]
+        unorderedKeywords = (keyword for keyword in keywords)
         unorderedKeywords.sort (a, b) ->
                 if (b.length - a.length) == 0
                         if a == b
