@@ -464,11 +464,26 @@ $(document).ready ->
         search = new Search()
 
         $.getJSON "/files", (data) =>
-                songData = []
-                $.each data, (index, value) =>
-                        songData.push([index, value.filename])
+                directories = data.directories
+                for index in [1..(directories.length - 1)]
+                        directory = directories[index]
+                        [parent, name] = directory.split "/"
+                        directories[index] = "#{directories[parseInt(parent)]}/#{name}"
 
-                search.initialize data
+                songData = []
+                files = []
+                for fileinfo, index in data.files
+                        fileObject = {}
+                        for field, index in data.fields
+                                if index < fileinfo.length
+                                        fileObject[field] = fileinfo[index]
+                        if fileObject.filename.indexOf("/") != -1
+                                [directory, basename] = fileObject.filename.split "/"
+                                fileObject.filename = "#{directories[parseInt(directory)]}/#{basename}"
+                        songData.push [index, fileObject.filename]
+                        files.push fileObject
+
+                search.initialize files
 
                 songQueue.updateAll songData
 
