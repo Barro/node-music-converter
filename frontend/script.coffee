@@ -360,18 +360,26 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
 
         lastHashChange = null
 
+        # TODO forward/backward does not work due to resumption functionality.
         hashChange = (songName) ->
+                if lastHashChange == songName
+                        return
                 lastHashChange = songName
                 if (not player.isPlaying()) and (not songName?)
                         if player.currentSong
+                                console.log "resume playing"
                                 player.resumePlaying()
                         else
+                                console.log "next song"
                                 queue.next()
                         return
-                if player.currentSong
+
+                if player.isPlaying() and player.currentSong
                         [index, file] = player.currentSong
-                        if player.isPlaying() and songName == file
+                        if songName == file
+                                console.log "current song"
                                 return
+
                 $(songData).each (index, element) =>
                         [index, file] = element
                         if file == songName
