@@ -7,8 +7,25 @@ temp = require 'temp'
 # 1 minute of 160 kbps music.
 FAILED_CONVERSION_IS_OK_SIZE = 60 * 160 * 1000 / 8
 
+class AudioConverter
+        _conversionDone: (target, code, callback) =>
+                if code != 0
+                        # We have failed file conversion. Let's check
+                        # if the resulting file is large enough so that
+                        # we can accept the conversion anyway.
+                        fs.stat target, (err, stats) ->
+                                if err
+                                        callback "Failed file conversion. No file exists."
+                                        return
+                                if stats.size >= FAILED_CONVERSION_IS_OK_SIZE
+                                        @_audioGain target, callback
+                                        return
+                                callback "Failed file conversion. Not enough data converted (#{stats.size} bytes)."
+                        return
+                @_audioGain target, callback
 
-class VorbisConverter
+
+class VorbisConverter extends AudioConverter
         suffix: =>
                 return "ogg"
 
@@ -18,28 +35,22 @@ class VorbisConverter
         mimeType: =>
                 return "application/ogg"
 
+        _audioGain: (target, callback) =>
+                options =
+                        cwd: "/tmp/"
+                vorbisgain = child_process.spawn "vorbisgain", [target], options
+                vorbisgain.on 'exit', (code) =>
+                        callback null
+
         convert: (source, bitrate, target, callback) =>
                 options =
                         cwd: "/tmp/"
-                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-y', '-loglevel', 'quiet', target], options
+                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '44100', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
                 ffmpeg.on 'exit', (code) =>
-                        if code != 0
-                                # We have failed file conversion. Let's check
-                                # if the resulting file is large enough so that
-                                # we can accept the conversion anyway.
-                                fs.stat target, (err, stats) ->
-                                        if err
-                                                callback "Failed file conversion. No file exists."
-                                                return
-                                        if stats.size >= FAILED_CONVERSION_IS_OK_SIZE
-                                                callback null
-                                                return
-                                        callback "Failed file conversion. Not enough data converted (#{stats.size} bytes)."
-                                return
-                        callback null
+                        @_conversionDone target, code, callback
 
 
-class Mp3Converter
+class Mp3Converter extends AudioConverter
         suffix:  =>
                 return "mp3"
 
@@ -49,25 +60,19 @@ class Mp3Converter
         mimeType: =>
                 return "audio/mpeg"
 
+        _audioGain: (target, callback) =>
+                options =
+                        cwd: "/tmp/"
+                mp3gain = child_process.spawn "mp3gain", [target], options
+                mp3gain.on 'exit', (code) =>
+                        callback null
+
         convert: (source, bitrate, target, callback) =>
                 options =
                         cwd: "/tmp/"
-                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-loglevel', 'quiet', target], options
+                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '44100', '-ac', '2', '-loglevel', 'quiet', target], options
                 ffmpeg.on 'exit', (code) =>
-                        if code != 0
-                                # We have failed file conversion. Let's check
-                                # if the resulting file is large enough so that
-                                # we can accept the conversion anyway.
-                                fs.stat target, (err, stats) ->
-                                        if err
-                                                callback "Failed file conversion. No file exists."
-                                                return
-                                        if stats.size >= FAILED_CONVERSION_IS_OK_SIZE
-                                                callback null
-                                                return
-                                        callback "Failed file conversion. Not enough data converted (#{stats.size} bytes)."
-                                return
-                        callback null
+                        @_conversionDone target, code, callback
 
 
 class FileCacheInstance
