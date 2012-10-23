@@ -138,6 +138,11 @@ class Player
                 @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
                 @player.load()
                 @currentSong = song
+                # Preload the currently playing song to handle cases where we
+                # fail to play the requested song. As audio element does not
+                # send any events on failed playback, we need to use another
+                # trick to detect failures.
+                @preload song
 
         preload: (song) =>
                 if @lastPreload == song
