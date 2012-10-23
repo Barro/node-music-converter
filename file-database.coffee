@@ -1,4 +1,5 @@
 fs = require 'fs'
+path = require "path"
 lazy = require 'lazy'
 unorm = require 'unorm'
 
@@ -8,13 +9,46 @@ stripEmptyItems = (list) ->
         return list
 
 exports.FileDatabaseView = class FileDatabaseView
-        constructor: (@log) ->
-                @filedata = []
+        constructor: (@cacheDir, @cacheLocation, @log) ->
                 @filenames = {}
+                @cacheKey = ""
 
-        open: (files) =>
-                @filedata = {directories: [], fields: [], files: []}
+        _cacheName: =>
+                return "#{@cacheKey}.json"
+
+        _cachePath: =>
+                return path.join @cacheDir, @_cacheName()
+
+        _checkCache: (callback) =>
+                fs.exists @_cachePath(), (exists) =>
+                        callback exists
+
+        _createCache: (filedata, callback) =>
+                fs.writeFile @_cachePath(), JSON.stringify(filedata), "utf-8", (err) =>
+                        if err
+                                callback "Failed to write cache to '#{@_cachePath}': #{err}"
+                                return
+                        @log.info "Created cache."
+                        callback null
+
+        open: (files, callback) =>
+                @cacheKey = files.cacheKey
+                @_createFileMap files
+                @_checkCache (exists) =>
+                        if exists
+                                @log.info "Found cached file database."
+                                callback null
+                                return
+                        @_createDatabase files, callback
+
+        _createFileMap: (files) =>
                 @filenames = {}
+                for fileinfo in files.files
+                        @filenames[fileinfo.filename] = true
+
+        _createDatabase: (files, callback) =>
+                @log.info "Creating a new file database."
+                filedata = {directories: [], fields: [], files: []}
                 directoryId = 0
                 directoryIds = {"": 0}
                 shortFiles = []
@@ -47,7 +81,7 @@ exports.FileDatabaseView = class FileDatabaseView
                                         directoryIds[fullDirectory] = currentId
                         return "#{currentId}/#{basename}"
 
-                for fileinfo in files
+                for fileinfo in files.files
                         if not fileinfo.filename
                                 continue
 
@@ -67,10 +101,11 @@ exports.FileDatabaseView = class FileDatabaseView
                                 file.push ""
                         file = stripEmptyItems file
                         shortFiles.push file
-                        @filenames[fileinfo.filename] = file
-                @filedata.directories = directories
-                @filedata.files = shortFiles
-                @filedata.fields = fields
+                filedata.directories = directories
+                filedata.files = shortFiles
+                filedata.fields = fields
+                @log.info "Finished reading file data."
+                @_createCache filedata, callback
 
         exists: (filename) =>
                 return filename of @filenames
@@ -78,5 +113,10 @@ exports.FileDatabaseView = class FileDatabaseView
         getPath: (filename) =>
                 return filename
 
+        _getLocation: =>
+                return "#{@cacheLocation}/#{@_cacheName()}"
+
         view: (request, response) =>
-                response.json @filedata
+                location = @_getLocation()
+                response.set "location", location
+                response.send "Go to #{location}", 302

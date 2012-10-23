@@ -1,3 +1,4 @@
+crypto = require "crypto"
 fs = require "fs"
 lazy = require 'lazy'
 _s = require "underscore.string"
@@ -46,14 +47,32 @@ exports.FilenamePerLineParser = class FilenamePerLineParser
 
 
 exports.Parser = class Parser
-        constructor: ->
+        constructor: (@log) ->
                 @filenamePerLine = new FilenamePerLineParser()
                 @audaciousPlaylist = new AudaciousPlaylistParser()
 
+        _createChecksum: (err, filename, files, callback) =>
+                if err
+                        callback err, null
+                        return
+                hash = crypto.createHash "sha512"
+                stream = fs.ReadStream filename
+                stream.on "data", (data) =>
+                        hash.update data
+                stream.on "end", =>
+                        checksum = hash.digest "hex"
+                        result =
+                                files: files
+                                cacheKey: checksum
+                        callback err, result
+
         parse: (filename, callback) =>
+                @log.info "Reading song database file: '#{filename}'."
                 if _s.endsWith filename, ".txt"
-                        @filenamePerLine.parse filename, callback
+                        @filenamePerLine.parse filename, (err, result) =>
+                                @_createChecksum err, filename, result, callback
                 else if _s.endsWith filename, ".audpl"
-                        @audaciousPlaylist.parse filename, callback
+                        @audaciousPlaylist.parse filename, (err, result) =>
+                                @_createChecksum err, filename, result, callback
                 else
                         callback "Failed to recognize format for file '#{filename}'"
