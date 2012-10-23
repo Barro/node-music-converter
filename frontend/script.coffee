@@ -26,11 +26,14 @@ shuffledList = (list) ->
 
 
 class SongQueue
-        constructor: ->
+        constructor: (@storage) ->
                 _.extend @, Backbone.Events
                 @allSongs = []
                 @visibleSongs = []
-                @queuedSongs = []
+                if @storage.queue
+                        @queuedSongs = JSON.parse @storage.queue
+                else
+                        @queuedSongs = []
                 @playbackFiles = []
                 @nextSong = null
                 @nextLength = 0
@@ -55,6 +58,7 @@ class SongQueue
                 return next
 
         clearNext: =>
+                @storage.queue = JSON.stringify @queuedSongs
                 @nextSong = null
                 @nextLength = 0
 
@@ -62,6 +66,7 @@ class SongQueue
                 if @nextSong != null
                         return @nextSong
                 if @queuedSongs.length > 0
+                        @storage.queue = JSON.stringify @queuedSongs
                         song = @queuedSongs.shift()
                         @nextSong = song
                         @nextLength = 1
@@ -88,12 +93,14 @@ class SongQueue
 
         add: (song) =>
                 @queuedSongs.push song
+                @storage.queue = JSON.stringify @queuedSongs
                 @_removeRandom()
                 @trigger "add", song
                 return @queuedSongs.length
 
         remove: (index) =>
                 [removed] = @queuedSongs.splice(index, 1)
+                @storage.queue = JSON.stringify @queuedSongs
                 @trigger "remove", song, index
                 return removed
 
@@ -106,12 +113,25 @@ class PlaybackType
 
 
 class Player
-        constructor: (@playerElement, @timeouter, @playbackType) ->
+        constructor: (@playerElement, @storage, @timeouter, @playbackType) ->
                 _.extend @, Backbone.Events
                 @player = @playerElement.get(0)
-                @currentSong = null
+                if @storage.currentSong
+                        try
+                                @currentSong = JSON.parse @storage.currentSong
+                        catch error
+                                @currentSong = null
+                else
+                        @currentSong = null
+                @continuePosition = 0
+                if @storage.continuePosition
+                        @lastPosition = @storage.continuePosition
+                else
+                        @lastPosition = 0
                 @lastPreload = null
                 @_bind()
+                if @storage.volume
+                        @setVolume @storage.volume
 
         _bind: =>
                 @playerElement.bind "pause", =>
@@ -121,15 +141,24 @@ class Player
                 @playerElement.bind "ended", =>
                         @trigger "ended"
                 @playerElement.bind "volumechange", =>
+                        @storage.volume = @player.volume
                         @trigger "volumechange", @player.volume
                 @playerElement.bind "timeupdate", =>
+                        @storage.continuePosition = @player.currentTime
                         @trigger "timeupdate", @player.currentTime, @player.duration
                 @playerElement.bind "durationchange", =>
                         @trigger "durationchange", @player.duration
 
                 @playerElement.bind "loadeddata", =>
+                        if @continuePosition
+                                @player.currentTime = @continuePosition
+                                @continuePosition = 0
                         @player.play()
                         @trigger "play", @currentSong
+
+        resumePlaying: =>
+                @continuePosition = @lastPosition
+                @play @currentSong
 
         play: (song) =>
                 [index, file] = song
@@ -138,6 +167,7 @@ class Player
                 @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
                 @player.load()
                 @currentSong = song
+                @storage.currentSong = JSON.stringify @currentSong
                 # Preload the currently playing song to handle cases where we
                 # fail to play the requested song. As audio element does not
                 # send any events on failed playback, we need to use another
@@ -183,6 +213,7 @@ class Player
                         return false
                 return not (@player.paused and @player.readyState == @player.HAVE_NOTHING)
 
+
 viewTimeString = (total_seconds) ->
         hours = parseInt total_seconds / 3600
         remaining_seconds = total_seconds - hours * 3600
@@ -199,6 +230,7 @@ viewTimeString = (total_seconds) ->
 
 PlayerView = (playerElement, player, songQueue) ->
         queueStatus = $("#queue-length", playerElement)
+        queueStatus.text songQueue.length()
         songQueue.on "add", (song) ->
                 queueStatus.text songQueue.length()
         songQueue.on "remove", (song) ->
@@ -331,11 +363,14 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         hashChange = (songName) ->
                 lastHashChange = songName
                 if (not player.isPlaying()) and (not songName?)
-                        queue.next()
+                        if player.currentSong
+                                player.resumePlaying()
+                        else
+                                queue.next()
                         return
                 if player.currentSong
                         [index, file] = player.currentSong
-                        if songName == file
+                        if player.isPlaying() and songName == file
                                 return
                 $(songData).each (index, element) =>
                         [index, file] = element
@@ -377,15 +412,16 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                         @_fnCalculateEnd oSettings
                         @_fnDraw oSettings
 
-        lastValue = $("#search").val()
-        if lastValue != ""
-                table.fnFilter lastValue
-        $("#search").keyup ->
+        if search.lastSearch
+                $("#search").val search.lastSearch
+                table.fnFilter search.lastSearch
+        doSearch = ->
                 searchValue = $("#search").val()
-                if searchValue == lastValue
+                if searchValue == search.lastSearch
                         return
-                lastValue = searchValue
                 table.fnFilter searchValue
+        $("#search").keyup doSearch
+        $("#search").change doSearch
 
 
 class PlayerRouter extends Backbone.Router
@@ -400,23 +436,37 @@ class PlayerRouter extends Backbone.Router
 
 
 class Search
-        constructor: ->
+        constructor: (@storage) ->
                 _.extend @, Backbone.Events
                 @worker = new Worker "frontend/search.js"
                 @worker.onmessage = (event) =>
                         @_handle event.data
                 @searchId = 0
                 @searchCallbacks = {}
+                if @storage.lastSearch
+                        @lastSearch = @storage.lastSearch
+                else
+                        @lastSearch = ''
 
         _handle: (data) =>
                 if data.type == "initialize"
-                        # "initialize OK"
+                        @_handleInitialize()
                 else if data.type == "result"
                         @_handleResult data
                 else if data.type == "message"
                         console.log data.message
                 else
                         throw new Error "Unknown message type #{data.type}"
+
+        _handleInitialize: =>
+                # Handle case where we initialize search in the page load.
+                if @searchId of @searchCallbacks
+                        callback = @searchCallbacks[@searchId]
+                        @searchCallbacks[@searchId] = (matches) =>
+                                callback matches
+                                @trigger "initialize"
+                else
+                        @trigger "initialize"
 
         _handleResult: (result) =>
                 callback = @searchCallbacks[result.searchId]
@@ -432,6 +482,8 @@ class Search
         search: (string, callback) =>
                 @searchId++
                 @searchCallbacks[@searchId] = callback
+                @lastSearch = string
+                @storage.lastSearch = string
                 @worker.postMessage {type: "search", searchId: @searchId, value: string}
 
 
@@ -455,8 +507,8 @@ $(document).ready ->
         playerContainer =  $("#player")
         playerJquery = $("audio", playerContainer)
         timeouter = new RetryTimeouter()
-        playerInstance = new Player playerJquery, timeouter, playbackType
-        songQueue = new SongQueue()
+        playerInstance = new Player playerJquery, localStorage, timeouter, playbackType
+        songQueue = new SongQueue localStorage
 
 
         PlayerView playerContainer, playerInstance, songQueue
@@ -466,7 +518,7 @@ $(document).ready ->
 
         QueueView $("#toggle-queue"), $("#queue"), songQueue, playerInstance
 
-        search = new Search()
+        search = new Search localStorage
 
         $.getJSON "/files", (data) =>
                 directories = data.directories
@@ -493,5 +545,6 @@ $(document).ready ->
                 songQueue.updateAll songData
 
                 PlaylistView $("#playlist"), songData, playerInstance, songQueue, router, search
-                Backbone.history.start()
 
+                search.on "initialize", ->
+                        Backbone.history.start()
