@@ -1,5 +1,5 @@
 class RetryTimeouter
-        constructor: (@minTimeout=1000, @maxTimeout=30000) ->
+        constructor: (@minTimeout=500, @maxTimeout=5000) ->
                 @reset()
 
         increaseTimeout: =>
@@ -128,10 +128,11 @@ class Player
                         @lastPosition = @storage.continuePosition
                 else
                         @lastPosition = 0
-                @lastPreload = null
+                @preloads = {}
                 @_bind()
                 if @storage.volume
                         @setVolume @storage.volume
+                @startedPlaying = false
 
         _bind: =>
                 @playerElement.bind "pause", =>
@@ -161,9 +162,8 @@ class Player
                 @play @currentSong
 
         play: (song) =>
-                [index, file] = song
                 @playerElement.empty()
-                encodedPath = encodeURIComponent file
+                encodedPath = encodeURIComponent song.filename
                 @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
                 @player.load()
                 @currentSong = song
@@ -173,20 +173,22 @@ class Player
                 # send any events on failed playback, we need to use another
                 # trick to detect failures.
                 @preload song
+                @startedPlaying = true
 
         preload: (song) =>
-                if @lastPreload == song
+                if song of @preloads
                         return
-                @lastPreload = song
-                [index, file] = song
-                encodedPath = encodeURIComponent file
+                @preloads[song] = new Date()
+                encodedPath = encodeURIComponent song.filename
                 songPath = "/file/#{encodedPath}?type=#{@playbackType.request}"
                 @trigger "preloadStart", song
                 request = $.get(songPath)
                 errorCallback = =>
+                        delete @preloads[song]
                         setTimeout (=> @trigger "preloadFailed", song), @timeouter.increaseTimeout()
                 request.error errorCallback
                 request.success =>
+                        delete @preloads[song]
                         @timeouter.reset()
                         @trigger "preloadOk", song
 
@@ -209,9 +211,7 @@ class Player
                 return @player.currentTime
 
         isPlaying: =>
-                if @player.networkState == @player.NETWORK_NO_SOURCE
-                        return false
-                return not (@player.paused and @player.readyState == @player.HAVE_NOTHING)
+                return @player.networkState != @player.NETWORK_NO_SOURCE
 
 
 viewTimeString = (total_seconds) ->
@@ -248,24 +248,28 @@ PlayerView = (playerElement, player, songQueue) ->
         nextSongStatusElement = $("#status-next", playerElement)
 
         player.on "play", (song) ->
+                console.log "play preload"
                 player.preload songQueue.peek()
         songQueue.on "add", (song) ->
+                console.log "add preload"
                 player.preload songQueue.peek()
 
         lastPreloadSong = null
         player.on "preloadStart", (song) ->
+                console.log "preloadStart"
                 lastPreloadSong = song
-                [index, file] = song
-                newsong = $("<span class='song-name'></span>").text file
+                newsong = $("<span class='song-name'></span>").text song.filename
                 nextSongStatusElement.html newsong
 
         player.on "preloadFailed", (song) ->
+                console.log "preloadFailed"
                 songQueue.clearNext()
                 newSong = songQueue.peek()
                 lastPreloadSong = newSong
                 player.preload newSong
 
         player.on "preloadOk", (song) ->
+                console.log "preloadOk"
                 if song == lastPreloadSong
                         nextSongStatusElement.append "<span style='color: green'>&nbsp;✓</span>"
 
@@ -288,8 +292,7 @@ PlayerView = (playerElement, player, songQueue) ->
 
         currentSongStatusElement = $("#status-current", playerElement)
         player.on "play", (song) ->
-                [index, file] = song
-                thisSong = $("<span class='song-name'></span>").text file
+                thisSong = $("<span class='song-name'></span>").text song.filename
                 currentSongStatusElement.html thisSong
 
         volumeSlider = $(".volume-slider", playerElement)
@@ -343,13 +346,24 @@ QueueView = (queueButton, queueElement, queue, player) ->
 
 
 PlaylistView = (playlistElement, songData, player, queue, router, search) ->
-        columns = [ { "bSearchable": false, "bVisible": false}, { "sTitle": "Song", "bSortable": false } ]
+        columns = []
+        columns.push { "bSearchable": false, "bVisible": false}
+        columns.push { "bSearchable": false, "sTitle": "Artist", "bSortable": false, "sClass": "artist", "sWidth": "10em" }
+        columns.push { "bSearchable": false, "sTitle": "Album", "bSortable": false, "sClass": "album", "sWidth": "10em" }
+        columns.push { "bSearchable": false, "sTitle": "Title", "bSortable": false, "sClass": "title", "sWidth": "10em" }
+
+        tableData = []
+        for song, index in songData
+                artist = song.artist or ''
+                album = song.album or ''
+                title = song.title or ''
+                tableData.push([index, artist, album, title])
 
         tableProperties =
                 sScrollY: "430px"
                 sDom: "rtiS"
                 bDeferRender: true
-                aaData: songData
+                aaData: tableData
                 aoColumns: columns
 
         table = playlistElement.dataTable tableProperties
@@ -365,7 +379,9 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 if lastHashChange == songName
                         return
                 lastHashChange = songName
-                if (not player.isPlaying()) and (not songName?)
+
+                # Front page for the first time:
+                if (not player.startedPlaying) and (not songName?)
                         if player.currentSong
                                 console.log "resume playing"
                                 player.resumePlaying()
@@ -374,39 +390,45 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                                 queue.next()
                         return
 
-                if player.isPlaying() and player.currentSong
-                        [index, file] = player.currentSong
-                        if songName == file
+                # Hash change while player has already started playing
+                # something.
+                if player.startedPlaying
+                        if songName == player.currentSong.filename
                                 console.log "current song"
                                 return
 
+                # Cases where the song is selected through the hash element
+                # change.
                 $(songData).each (index, element) =>
-                        [index, file] = element
-                        if file == songName
-                                player.play element
+                        song = songData[index]
+                        if song.filename == songName
+                                console.log "playing"
+                                player.play song
+                                queue.clearNext()
                                 return false
 
         router.on "play", hashChange
 
-        lastIndex = 0
-        player.on "play", (song) ->
-                oldRow = table.fnGetData lastIndex
-                $(oldRow).remove(".playing")
-                [newIndex, file] = song
-                newRow = table.fnGetData newIndex
-                $(newRow).add(".playing")
+        # TODO
+        # lastIndex = 0
+        # player.on "play", (song) ->
+        #         oldRow = table.fnGetData lastIndex
+        #         $(oldRow).remove(".playing")
+        #         [newIndex, file] = song
+        #         newRow = table.fnGetData newIndex
+        #         $(newRow).add(".playing")
 
         lastSong = null
 
         player.on "play", (song) ->
-                [index, file] = song
-                if lastHashChange != file
-                        router.navigate "/" + file
+                if lastHashChange != song.filename
+                        router.navigate "/" + song.filename
 
         $('tr', playlistElement).live "click", ->
                 aData = table.fnGetData @
-                song = aData
-                queue.add song
+                [index, data...] = aData
+                console.log index
+                queue.add songData[index]
 
         table.fnFilter = (string) ->
                 oSettings = @fnSettings()
@@ -535,7 +557,6 @@ $(document).ready ->
                         [parent, name] = directory.split "/"
                         directories[index] = "#{directories[parseInt(parent)]}/#{name}"
 
-                songData = []
                 files = []
                 for fileinfo, index in data.files
                         fileObject = {}
@@ -545,14 +566,13 @@ $(document).ready ->
                         if fileObject.filename.indexOf("/") != -1
                                 [directory, basename] = fileObject.filename.split "/"
                                 fileObject.filename = "#{directories[parseInt(directory)]}/#{basename}"
-                        songData.push [index, fileObject.filename]
                         files.push fileObject
 
                 search.initialize files
 
-                songQueue.updateAll songData
+                songQueue.updateAll files
 
-                PlaylistView $("#playlist"), songData, playerInstance, songQueue, router, search
+                PlaylistView $("#playlist"), files, playerInstance, songQueue, router, search
 
                 search.on "initialize", ->
                         Backbone.history.start()
