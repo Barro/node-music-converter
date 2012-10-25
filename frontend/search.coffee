@@ -13,16 +13,14 @@ Identifier =
 
 normalizeKey = (value) ->
         normalized = value
-        normalized = normalized.replace(/\s+/, '-')
-        normalized = normalized.replace(/-+/, '-')
-        normalized = normalized.replace(/^-+/, '')
-        normalized = normalized.replace(/-+$/, '')
+        normalized = normalized.replace /\s+/g, '-'
+        normalized = normalized.replace /-+/g, '-'
 
         normalized = normalized.toLowerCase()
 
-        normalized = normalized.replace("album:", "#{Identifier.ALBUM}:")
-        normalized = normalized.replace("title:", "#{Identifier.TITLE}:")
-        normalized = normalized.replace("artist:", "#{Identifier.ARTIST}:")
+        normalized = normalized.replace "album:", "#{Identifier.ALBUM}:"
+        normalized = normalized.replace "title:", "#{Identifier.TITLE}:"
+        normalized = normalized.replace "artist:", "#{Identifier.ARTIST}:"
 
         return normalized
 
@@ -67,10 +65,10 @@ createSearchIndex = (song) ->
                 index += " #{Identifier.ALBUM}:#{album}"
         if song.title
                 title = normalizeKey song.title
-                index += " #{Identifier.TITLE}:#{title}"
+                index += "-#{Identifier.TITLE}:#{title}"
         if song.artist
                 artist = normalizeKey song.artist
-                index += " #{Identifier.ARTIST}:#{artist}"
+                index += "-#{Identifier.ARTIST}:#{artist}-"
         return index
 
 

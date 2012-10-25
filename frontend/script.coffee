@@ -1,3 +1,9 @@
+SEARCH_UPDATE_PRELOAD_DELAY = 2000
+CONVERSION_WAIT_TIMEOUT = 180 * 60 * 1000
+
+simpleNormalizeName = (name) ->
+        return name.replace /\s+/g, "-"
+
 class RetryTimeouter
         constructor: (@minTimeout=500, @maxTimeout=5000) ->
                 @reset()
@@ -41,7 +47,10 @@ class SongQueue
         updateAll: (@allSongs) =>
                 @trigger "updateAll", @allSongs
 
-        updateVisible: (@visibleSongs) ->
+        updateVisible: (newVisibleSongs) ->
+                if @visibleSongs == newVisibleSongs
+                        return
+                @visibleSongs = newVisibleSongs
                 @playbackFiles = []
                 @_removeRandom()
                 @trigger "updateVisible", @visibleSongs
@@ -172,25 +181,33 @@ class Player
                 # fail to play the requested song. As audio element does not
                 # send any events on failed playback, we need to use another
                 # trick to detect failures.
-                @preload song
+                @preload song, false
                 @startedPlaying = true
 
-        preload: (song) =>
-                if song of @preloads
+        preload: (song, react=true) =>
+                console.log "player#preload #{song.title} #{react}"
+                if song.filename of @preloads
+                        console.log "player#preload #{song.title} return"
                         return
-                @preloads[song] = new Date()
+                @preloads[song.filename] = new Date()
                 encodedPath = encodeURIComponent song.filename
                 songPath = "/file/#{encodedPath}?type=#{@playbackType.request}"
-                @trigger "preloadStart", song
-                request = $.get(songPath)
+                @trigger "preloadStart", song, react
+
+                settings =
+                        type: "HEAD"
+                        timeout: CONVERSION_WAIT_TIMEOUT
+                request = $.ajax songPath, settings
+                failCallback = =>
+                        @trigger "preloadFailed", song, react
                 errorCallback = =>
-                        delete @preloads[song]
-                        setTimeout (=> @trigger "preloadFailed", song), @timeouter.increaseTimeout()
+                        delete @preloads[song.filename]
+                        setTimeout failCallback, @timeouter.increaseTimeout()
                 request.error errorCallback
                 request.success =>
-                        delete @preloads[song]
+                        delete @preloads[song.filename]
                         @timeouter.reset()
-                        @trigger "preloadOk", song
+                        @trigger "preloadOk", song, react
 
         togglePause: =>
                 if @player.paused
@@ -232,55 +249,94 @@ PlayerView = (playerElement, player, songQueue) ->
         queueStatus = $("#queue-length", playerElement)
         queueStatus.text songQueue.length()
         songQueue.on "add", (song) ->
+                console.log "add -> queuestatus"
                 queueStatus.text songQueue.length()
         songQueue.on "remove", (song) ->
+                console.log "remove -> queuestatus"
                 queueStatus.text songQueue.length()
         songQueue.on "next", (song) ->
+                console.log "next -> queuestatus"
                 queueStatus.text songQueue.length()
 
         songQueue.on "next", (song) ->
+                console.log "next -> player.play"
                 player.play song
 
         nextSongButton = $("#next", playerElement)
         nextSongButton.click ->
+                console.log "nextSongButton.click -> next"
                 songQueue.next()
 
-        nextSongStatusElement = $("#status-next", playerElement)
+        nextSongStatusElement = $("#preload-status", playerElement)
 
         player.on "play", (song) ->
-                console.log "play preload"
-                player.preload songQueue.peek()
-        songQueue.on "add", (song) ->
-                console.log "add preload"
-                player.preload songQueue.peek()
+                console.log "player.play preload"
+                player.preload songQueue.peek(), true
 
         lastPreloadSong = null
-        player.on "preloadStart", (song) ->
-                console.log "preloadStart"
+        player.on "preloadStart", (song, react) ->
+                console.log "player.preloadStart #{react}"
+                if not react
+                        console.log "player.preloadStart -> noreact"
+                        return
                 lastPreloadSong = song
-                newsong = $("<span class='song-name'></span>").text song.filename
+                newsong = $("<span class='notloaded'>✘</span>")
+                newsong.attr "title", "#{song.artist} / #{song.album} / #{song.title}"
                 nextSongStatusElement.html newsong
 
-        player.on "preloadFailed", (song) ->
-                console.log "preloadFailed"
+        player.on "preloadFailed", (song, react) ->
+                console.log "player.preloadFailed #{react}"
                 songQueue.clearNext()
                 newSong = songQueue.peek()
-                lastPreloadSong = newSong
-                player.preload newSong
+                if react
+                        console.log "player.preloadFailed -> react"
+                player.preload newSong, react
 
-        player.on "preloadOk", (song) ->
-                console.log "preloadOk"
+        player.on "preloadOk", (song, react) ->
+                console.log "player.preloadOk #{song.title} #{react}"
+                if not react
+                        return
                 if song == lastPreloadSong
-                        nextSongStatusElement.append "<span style='color: green'>&nbsp;✓</span>"
+                        console.log "player.preloadOk #{song.title} -> lastPreloadSong"
+                        newsong = $(".notloaded", nextSongStatusElement)
+                        newsong.removeClass "notloaded"
+                        newsong.addClass "loaded"
+                        newsong.text "✓"
 
                 if not player.isPlaying()
+                        console.log "player.preloadOk #{song.title} -> notPlaying"
                         player.play song
+
+        preloadOnQueueChange = ->
+                if songQueue.peek() == lastPreloadSong
+                        return
+                player.preload songQueue.peek(), true
+
+        songQueue.on "add", preloadOnQueueChange
+        songQueue.on "remove", preloadOnQueueChange
+        songQueue.on "updateAll", preloadOnQueueChange
+
+        lastUpdateDelayId = 0
+        delayedQueueChangePreload = ->
+                lastUpdateDelayId++
+                updateDelayId = lastUpdateDelayId
+                updateOnChange = (delayId) ->
+                        console.log "update on change"
+                        if updateDelayId != lastUpdateDelayId
+                                console.log "not newest"
+                                return
+                        preloadOnQueueChange()
+                setTimeout updateOnChange, SEARCH_UPDATE_PRELOAD_DELAY
+        songQueue.on "updateVisible", delayedQueueChangePreload
 
         playSongButton = $("#play-control", playerElement)
         playSongButton.click ->
+                console.log "playSongButton.click"
                 if player.isPlaying()
+                        console.log "playSongButton.click -> isPlaying"
                         player.togglePause()
                 else
+                        console.log "playSongButton.click -> queueNext"
                         songQueue.next()
 
         player.on "pause", ->
@@ -288,12 +344,26 @@ PlayerView = (playerElement, player, songQueue) ->
         player.on "resume", ->
                 playSongButton.text "Pause"
         player.on "ended", ->
+                console.log "player.ended -> next"
                 songQueue.next()
 
         currentSongStatusElement = $("#status-current", playerElement)
+        artistElement = $("#artist", currentSongStatusElement)
+        albumElement = $("#album", currentSongStatusElement)
+        titleElement = $("#title", currentSongStatusElement)
         player.on "play", (song) ->
-                thisSong = $("<span class='song-name'></span>").text song.filename
-                currentSongStatusElement.html thisSong
+                artistElement.text song.artist
+                albumElement.text song.album
+                titleElement.text song.title
+
+        artistElement.click ->
+                searchValue = "artist:#{simpleNormalizeName artistElement.text()}-"
+                console.log searchValue
+                $("#search").val(searchValue).change()
+        albumElement.click ->
+                searchValue = "album:#{simpleNormalizeName albumElement.text()}-"
+                console.log searchValue
+                $("#search").val(searchValue).change()
 
         volumeSlider = $(".volume-slider", playerElement)
         showVolume = (volume) ->
@@ -354,9 +424,9 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
 
         tableData = []
         for song, index in songData
-                artist = song.artist or ''
-                album = song.album or ''
-                title = song.title or ''
+                artist = song.artist or 'UNKNOWN'
+                album = song.album or 'UNKNOWN'
+                title = song.title or 'UNKNOWN'
                 tableData.push([index, artist, album, title])
 
         tableProperties =
@@ -409,7 +479,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
 
         router.on "play", hashChange
 
-        # TODO
+        # TODO highlight currently playing song
         # lastIndex = 0
         # player.on "play", (song) ->
         #         oldRow = table.fnGetData lastIndex
@@ -505,6 +575,7 @@ class Search
                 if result.searchId == @searchId
                         matches = result.matches
                         callback matches
+                        @trigger "result", result
 
         initialize: (songs) =>
                 @worker.postMessage {type: "initialize", songs: songs}
@@ -566,6 +637,17 @@ $(document).ready ->
                         if fileObject.filename.indexOf("/") != -1
                                 [directory, basename] = fileObject.filename.split "/"
                                 fileObject.filename = "#{directories[parseInt(directory)]}/#{basename}"
+
+                        # This guess is often wrong as not everything is
+                        # organized like this, but this is usually better
+                        # than showing nothing.
+                        if not fileObject.artist or not fileObject.album or not fileObject.title
+                                filenameParts = fileObject.filename.split "/"
+                                [artistPart, albumPart, titlePart] = filenameParts[(filenameParts.length - 3)..(filenameParts.length - 1)]
+                                fileObject.artist = fileObject.artist or artistPart
+                                fileObject.album = fileObject.album or albumPart
+                                fileObject.title = fileObject.title or titlePart
+
                         files.push fileObject
 
                 search.initialize files
