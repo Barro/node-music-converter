@@ -122,9 +122,10 @@ class PlaybackType
 
 
 class Player
-        constructor: (@playerElement, @storage, @timeouter, @playbackType) ->
+        constructor: (@playerElement, @preloadElement, @storage, @timeouter, @playbackType) ->
                 _.extend @, Backbone.Events
                 @player = @playerElement.get(0)
+                @preloadPlayer = @preloadElement.get(0)
                 if @storage.currentSong
                         try
                                 @currentSong = JSON.parse @storage.currentSong
@@ -207,6 +208,12 @@ class Player
                 request.success =>
                         delete @preloads[song.filename]
                         @timeouter.reset()
+
+                        @preloadElement.empty()
+                        source = @preloadElement.append "<source type='#{@playbackType.mime}' />"
+                        source.attr "src", songPath
+                        @preloadPlayer.load()
+
                         @trigger "preloadOk", song, react
 
         togglePause: =>
@@ -606,9 +613,10 @@ $(document).ready ->
                 return
 
         playerContainer =  $("#player")
-        playerJquery = $("audio", playerContainer)
+        playerElement = $(".player", playerContainer)
+        preloadElement = $(".preload-player", playerContainer)
         timeouter = new RetryTimeouter()
-        playerInstance = new Player playerJquery, localStorage, timeouter, playbackType
+        playerInstance = new Player playerElement, preloadElement, localStorage, timeouter, playbackType
         songQueue = new SongQueue localStorage
 
 
