@@ -11,15 +11,12 @@
 .playlist tbody tr
     white-space nowrap
 
-.artist, .album, .title
-    width 10em
-    overflow hidden
-
 .song-info-next
     color grey
 
 .song-info
     white-space nowrap
+    overflow hidden
 
 #artist, #album
     cursor pointer
@@ -29,3 +26,31 @@
 
 .loaded
     color green
+
+#preload-status
+    padding-left 2em
+
+#search
+    width 17em
+
+#status-current
+    overflow hidden
+    white-space nowrap
+
+.separator
+    font-weight bold
+
+.artist, .album, .title
+    max-width 300px
+    margin-right 5px
+    overflow hidden
+    white-space nowrap
+
+.row-index
+    display none
+
+td.album
+    background-color #e0e0e0
+
+td.album, td.artist
+    padding-left 0.3em

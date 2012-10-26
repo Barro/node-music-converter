@@ -161,6 +161,7 @@ class Player
                         @trigger "durationchange", @player.duration
 
                 @playerElement.bind "loadeddata", =>
+                        @startedPlaying = true
                         if @continuePosition
                                 @player.currentTime = @continuePosition
                                 @continuePosition = 0
@@ -183,7 +184,6 @@ class Player
                 # send any events on failed playback, we need to use another
                 # trick to detect failures.
                 @preload song, false
-                @startedPlaying = true
 
         preload: (song, react=true) =>
                 console.log "player#preload #{song.title} #{react}"
@@ -195,17 +195,7 @@ class Player
                 songPath = "/file/#{encodedPath}?type=#{@playbackType.request}"
                 @trigger "preloadStart", song, react
 
-                settings =
-                        type: "HEAD"
-                        timeout: CONVERSION_WAIT_TIMEOUT
-                request = $.ajax songPath, settings
-                failCallback = =>
-                        @trigger "preloadFailed", song, react
-                errorCallback = =>
-                        delete @preloads[song.filename]
-                        setTimeout failCallback, @timeouter.increaseTimeout()
-                request.error errorCallback
-                request.success =>
+                successCallback = (song) =>
                         delete @preloads[song.filename]
                         @timeouter.reset()
 
@@ -215,6 +205,23 @@ class Player
                         @preloadPlayer.load()
 
                         @trigger "preloadOk", song, react
+
+                settings =
+                        type: "HEAD"
+                        timeout: CONVERSION_WAIT_TIMEOUT
+                request = $.ajax songPath, settings
+                failCallback = (song) =>
+                        @trigger "preloadFailed", song, react
+                errorCallback = (song) =>
+                        delete @preloads[song.filename]
+                        setTimeout (=> failCallback song), @timeouter.increaseTimeout()
+                request.error (xhr, textStatus, errorThrown) =>
+                        # 302 redirect in Opera
+                        if errorThrown == "Moved Temporarily"
+                                successCallback song
+                        else
+                                errorCallback song
+                request.success (=> successCallback song)
 
         togglePause: =>
                 if @player.paused
@@ -282,7 +289,7 @@ PlayerView = (playerElement, player, songQueue) ->
 
         lastPreloadSong = null
         player.on "preloadStart", (song, react) ->
-                console.log "player.preloadStart #{react}"
+                console.log "player.preloadStart #{react} #{song.filename}"
                 if not react
                         console.log "player.preloadStart -> noreact"
                         return
@@ -292,7 +299,7 @@ PlayerView = (playerElement, player, songQueue) ->
                 nextSongStatusElement.html newsong
 
         player.on "preloadFailed", (song, react) ->
-                console.log "player.preloadFailed #{react}"
+                console.log "player.preloadFailed #{react} #{song.filename}"
                 songQueue.clearNext()
                 newSong = songQueue.peek()
                 if react
@@ -300,7 +307,7 @@ PlayerView = (playerElement, player, songQueue) ->
                 player.preload newSong, react
 
         player.on "preloadOk", (song, react) ->
-                console.log "player.preloadOk #{song.title} #{react}"
+                console.log "player.preloadOk #{react} #{song.filename}"
                 if not react
                         return
                 if song == lastPreloadSong
@@ -359,6 +366,7 @@ PlayerView = (playerElement, player, songQueue) ->
         albumElement = $("#album", currentSongStatusElement)
         titleElement = $("#title", currentSongStatusElement)
         player.on "play", (song) ->
+                currentSongStatusElement.attr "title", song.filename
                 artistElement.text song.artist
                 albumElement.text song.album
                 titleElement.text song.title
@@ -424,10 +432,37 @@ QueueView = (queueButton, queueElement, queue, player) ->
 
 PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         columns = []
-        columns.push { "bSearchable": false, "bVisible": false}
-        columns.push { "bSearchable": false, "sTitle": "Title", "bSortable": false, "sClass": "title", "sWidth": "10em" }
-        columns.push { "bSearchable": false, "sTitle": "Album", "bSortable": false, "sClass": "album", "sWidth": "10em" }
-        columns.push { "bSearchable": false, "sTitle": "Artist", "bSortable": false, "sClass": "artist", "sWidth": "10em" }
+
+        indexColumn =
+                bSearchable: false
+                bVisible: false
+                bSortable: false
+                sWidth: "1px"
+        columns.push indexColumn
+
+        titleColumn =
+                bSearchable: false
+                sTitle: "Title"
+                bSortable: false
+                sClass: "title"
+                sWidth: "300px"
+        columns.push titleColumn
+
+        albumColumn =
+                bSearchable: false
+                sTitle: "Album"
+                bSortable: false
+                sClass: "album"
+                sWidth: "300px"
+        columns.push albumColumn
+
+        artistColumn =
+                bSearchable: false
+                sTitle: "Artist"
+                bSortable: false
+                sClass: "artist"
+                sWidth: "300px"
+        columns.push artistColumn
 
         tableData = []
         for song, index in songData
@@ -436,8 +471,15 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 title = song.title or 'UNKNOWN'
                 tableData.push([index, title, album, artist])
 
+        # Magical numbers based on Stetson-Harrison method.
+        extraCruftHeight = 44
+        playlistHeight = playlistElement.data('targetHeight') - extraCruftHeight
         tableProperties =
-                sScrollY: "430px"
+                sScrollY: "#{playlistHeight}px"
+                sScrollX: "100%"
+                sScrollXInner: "100%"
+                bScrollCollapse: true
+                bAutoWidth: false
                 sDom: "rtiS"
                 bDeferRender: true
                 aaData: tableData
@@ -458,8 +500,8 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 lastHashChange = songName
 
                 # Front page for the first time:
-                if (not player.startedPlaying) and (not songName?)
-                        if player.currentSong
+                if not player.startedPlaying
+                        if player.currentSong and (not songName? or player.currentSong.filename == songName)
                                 console.log "resume playing"
                                 player.resumePlaying()
                         else
@@ -629,6 +671,12 @@ $(document).ready ->
 
         search = new Search localStorage
 
+        # Unfortunately DataTables does not support relative widths. So we need
+        # to calculate column widths here.
+        documentWidth = $(document).width()
+        columnWidth = documentWidth / 3 - 20
+        $("<style type='text/css'>.album, .artist, .title { max-width: #{columnWidth}; }</style>").appendTo("head");
+
         $.getJSON "/files", (data) =>
                 directories = data.directories
                 for index in [1..(directories.length - 1)]
@@ -662,7 +710,11 @@ $(document).ready ->
 
                 songQueue.updateAll files
 
-                PlaylistView $("#playlist"), files, playerInstance, songQueue, router, search
+                playlist = $("#playlist")
+                playlistHeight = $(document).height() - playerContainer.height() - $(".description").height() - playlist.height()
+
+                playlist.data "targetHeight", playlistHeight
+                PlaylistView playlist, files, playerInstance, songQueue, router, search
 
                 search.on "initialize", ->
                         Backbone.history.start()
