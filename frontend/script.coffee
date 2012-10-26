@@ -288,7 +288,7 @@ PlayerView = (playerElement, player, songQueue) ->
                         return
                 lastPreloadSong = song
                 newsong = $("<span class='notloaded'>✘</span>")
-                newsong.attr "title", "#{song.artist} / #{song.album} / #{song.title}"
+                newsong.attr "title", "#{song.title} / #{song.album} / #{song.artist} / #{song.filename}"
                 nextSongStatusElement.html newsong
 
         player.on "preloadFailed", (song, react) ->
@@ -425,16 +425,16 @@ QueueView = (queueButton, queueElement, queue, player) ->
 PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         columns = []
         columns.push { "bSearchable": false, "bVisible": false}
-        columns.push { "bSearchable": false, "sTitle": "Artist", "bSortable": false, "sClass": "artist", "sWidth": "10em" }
-        columns.push { "bSearchable": false, "sTitle": "Album", "bSortable": false, "sClass": "album", "sWidth": "10em" }
         columns.push { "bSearchable": false, "sTitle": "Title", "bSortable": false, "sClass": "title", "sWidth": "10em" }
+        columns.push { "bSearchable": false, "sTitle": "Album", "bSortable": false, "sClass": "album", "sWidth": "10em" }
+        columns.push { "bSearchable": false, "sTitle": "Artist", "bSortable": false, "sClass": "artist", "sWidth": "10em" }
 
         tableData = []
         for song, index in songData
                 artist = song.artist or 'UNKNOWN'
                 album = song.album or 'UNKNOWN'
                 title = song.title or 'UNKNOWN'
-                tableData.push([index, artist, album, title])
+                tableData.push([index, title, album, artist])
 
         tableProperties =
                 sScrollY: "430px"
