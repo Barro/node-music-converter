@@ -1,7 +1,8 @@
-express = require 'express'
-nodefs = require 'node-fs'
-optimist = require 'optimist'
-winston = require 'winston'
+express = require "express"
+gzippo = require "gzippo"
+nodefs = require "node-fs"
+optimist = require "optimist"
+winston = require "winston"
 
 argv = optimist
         .default("port", 8080)
@@ -26,9 +27,9 @@ app.configure =>
         app.set 'views',"#{__dirname}/views"
         app.set 'view engine', 'jade'
         app.use express.logger {stream: winstonStream}
-        app.use "/frontend", express.static "#{__dirname}/build/frontend"
-        app.use "/external", express.static "#{__dirname}/external"
-        app.use cacheLocation, express.static cacheDir
+        app.use "/frontend", gzippo.staticGzip "#{__dirname}/build/frontend"
+        app.use "/external", gzippo.staticGzip "#{__dirname}/external"
+        app.use cacheLocation, gzippo.staticGzip cacheDir
 
 app.get '/', (req, res) ->
         res.render "index"

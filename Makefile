@@ -10,3 +10,6 @@ build/%.js: %.coffee
 
 build/%.css: %.styl
 	node_modules/.bin/stylus --compress  -o $(shell dirname "$@") $^
+
+install: $(FRONTEND_OBJECTS)
+	npm install

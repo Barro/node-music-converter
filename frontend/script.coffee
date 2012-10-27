@@ -1,6 +1,9 @@
 SEARCH_UPDATE_PRELOAD_DELAY = 2000
 CONVERSION_WAIT_TIMEOUT = 180 * 60 * 1000
 
+MINIMUM_PROGRESS_FILES = 5000
+FILE_PROGRESS_UPDATE_INTERVAL = 500
+
 PLAYLIST_BASIC_COLUMNS = []
 titleColumn =
         bSearchable: false
@@ -727,6 +730,12 @@ $(document).ready ->
 
         PlayerView playerContainer, playerInstance, songQueue
 
+        if localStorage.currentSong
+                currentSong = JSON.parse localStorage.currentSong
+                $("#title").text currentSong.title
+                $("#album").text currentSong.album
+                $("#artist").text currentSong.artist
+
         HotkeysView playerInstance, songQueue, $("#toggle-queue")
 
         router = new PlayerRouter()
@@ -751,15 +760,25 @@ $(document).ready ->
         columnWidth = documentWidth / 3 - 20
         $("<style type='text/css'>.album, .artist, .title { max-width: #{columnWidth}; }</style>").appendTo("head");
 
-        $.getJSON "/files", (data) =>
+        dataParser = (data) ->
                 directories = data.directories
                 for index in [1..(directories.length - 1)]
                         directory = directories[index]
                         [parent, name] = directory.split "/"
                         directories[index] = "#{directories[parseInt(parent)]}/#{name}"
 
+                progressCallback = ->
+                fileId = 0
+                if data.files.length > MINIMUM_PROGRESS_FILES
+                        progressElement = $("#parse-progress")
+                        $(progressElement).parent().show()
+                        progressCallback = ->
+                                progressElement.val (100 * fileId / data.files.length).toFixed(0)
                 files = []
                 for fileinfo, index in data.files
+                        fileId++
+                        if fileId % FILE_PROGRESS_UPDATE_INTERVAL == 0
+                                progressCallback()
                         fileObject = {}
                         for field, index in data.fields
                                 if index < fileinfo.length
@@ -780,11 +799,30 @@ $(document).ready ->
 
                         files.push fileObject
 
+                progressCallback()
                 search.initialize files
 
                 songQueue.updateAll files
 
+                $("#initial-status").append $("<div>Creating playlist...</div>")
+
                 PlaylistView playlist, files, playerInstance, songQueue, router, search
+
+                $("#initial-status").remove()
 
                 search.on "initialize", ->
                         Backbone.history.start()
+
+        request =
+                url: "/files"
+                dataType: 'json'
+                xhr: ->
+                        xhr = new window.XMLHttpRequest()
+                        progressHandler = (event) ->
+                                if event.lengthComputable
+                                        percentComplete = 100 * event.loaded / event.total
+                                        $("#download-progress").val percentComplete.toFixed(0)
+                        xhr.addEventListener "progress", progressHandler, false
+                        return xhr
+                success : dataParser
+        $.ajax request
