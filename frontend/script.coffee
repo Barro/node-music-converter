@@ -1,6 +1,31 @@
 SEARCH_UPDATE_PRELOAD_DELAY = 2000
 CONVERSION_WAIT_TIMEOUT = 180 * 60 * 1000
 
+PLAYLIST_BASIC_COLUMNS = []
+titleColumn =
+        bSearchable: false
+        sTitle: "Title"
+        bSortable: false
+        sClass: "title"
+        sWidth: "300px"
+PLAYLIST_BASIC_COLUMNS.push titleColumn
+
+albumColumn =
+        bSearchable: false
+        sTitle: "Album"
+        bSortable: false
+        sClass: "album"
+        sWidth: "300px"
+PLAYLIST_BASIC_COLUMNS.push albumColumn
+
+artistColumn =
+        bSearchable: false
+        sTitle: "Artist"
+        bSortable: false
+        sClass: "artist"
+        sWidth: "300px"
+PLAYLIST_BASIC_COLUMNS.push artistColumn
+
 simpleNormalizeName = (name) ->
         return name.replace /\s+/g, "-"
 
@@ -44,6 +69,14 @@ class SongQueue
                 @nextSong = null
                 @nextLength = 0
 
+        fullQueue: =>
+                if @nextLength == 0
+                        return @queuedSongs
+                fullQueue = [@nextSong]
+                for song in @queuedSongs
+                        fullQueue.push song
+                return fullQueue
+
         updateAll: (@allSongs) =>
                 @trigger "updateAll", @allSongs
 
@@ -56,8 +89,7 @@ class SongQueue
                 @trigger "updateVisible", @visibleSongs
 
         length: =>
-                length = @queuedSongs.length + @nextLength
-                return length
+                return @fullQueue().length
 
         next: =>
                 next = @peek()
@@ -67,15 +99,15 @@ class SongQueue
                 return next
 
         clearNext: =>
-                @storage.queue = JSON.stringify @queuedSongs
                 @nextSong = null
                 @nextLength = 0
+                @storage.queue = JSON.stringify @fullQueue()
 
         peek: =>
                 if @nextSong != null
                         return @nextSong
                 if @queuedSongs.length > 0
-                        @storage.queue = JSON.stringify @queuedSongs
+                        @storage.queue = JSON.stringify @fullQueue()
                         song = @queuedSongs.shift()
                         @nextSong = song
                         @nextLength = 1
@@ -102,15 +134,18 @@ class SongQueue
 
         add: (song) =>
                 @queuedSongs.push song
-                @storage.queue = JSON.stringify @queuedSongs
+                @storage.queue = JSON.stringify @fullQueue()
                 @_removeRandom()
                 @trigger "add", song
                 return @queuedSongs.length
 
         remove: (index) =>
-                [removed] = @queuedSongs.splice(index, 1)
-                @storage.queue = JSON.stringify @queuedSongs
-                @trigger "remove", song, index
+                queue = @fullQueue()
+                @clearNext()
+                [removed] = queue.splice(index, 1)
+                @storage.queue = JSON.stringify queue
+                @queuedSongs = queue
+                @trigger "remove", removed, index
                 return removed
 
         show: =>
@@ -279,7 +314,7 @@ PlayerView = (playerElement, player, songQueue) ->
         songQueue.on "add", (song) ->
                 console.log "add -> queuestatus"
                 queueStatus.text songQueue.length()
-        songQueue.on "remove", (song) ->
+        songQueue.on "remove", (song, index) ->
                 console.log "remove -> queuestatus"
                 queueStatus.text songQueue.length()
         songQueue.on "next", (song) ->
@@ -387,11 +422,9 @@ PlayerView = (playerElement, player, songQueue) ->
 
         artistElement.click ->
                 searchValue = "artist:#{simpleNormalizeName artistElement.text()}-"
-                console.log searchValue
                 $("#search").val(searchValue).change()
         albumElement.click ->
                 searchValue = "album:#{simpleNormalizeName albumElement.text()}-"
-                console.log searchValue
                 $("#search").val(searchValue).change()
 
         volumeSlider = $(".volume-slider", playerElement)
@@ -427,24 +460,59 @@ PlayerView = (playerElement, player, songQueue) ->
         player.on "preparePlay", (song) ->
                 durationElement.text viewTimeString 0
 
+songToQueueRow = (song) ->
+        return [song.title, song.album, song.artist]
 
-QueueView = (queueButton, queueElement, queue, player) ->
+QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
+        columns = []
+
+        for column in PLAYLIST_BASIC_COLUMNS
+                columns.push column
+
+        queueData = []
+        for song in queue.fullQueue()
+                queueData.push songToQueueRow song
+
+        # Magical numbers based on Stetson-Harrison method.
+        playlistHeight = queueElement.data 'targetHeight'
+        tableProperties =
+                sScrollY: "#{playlistHeight}px"
+                sScrollX: "100%"
+                sScrollXInner: "100%"
+                bScrollCollapse: true
+                bAutoWidth: false
+                sDom: "rtiS"
+                bDeferRender: true
+                aaData: queueData
+                aoColumns: columns
+
+        table = queueElement.dataTable tableProperties
+        queueWrapper = $("#queue_wrapper")
+        queueWrapper.hide()
+
+        queue.on "add", (song) ->
+                table.fnAddData songToQueueRow song
+
         queue.on "next", (song) ->
-                # remove from queue
+                data = table.fnGetData()
+                if data.length > 0
+                        table.fnDeleteRow 0
+
+        queue.on "remove", (index) ->
+                table.fnDeleteRow index
 
         queueButton.on "click", ->
-                # show queue
-
-        table = null
+                $("#playlist_wrapper").toggle()
+                queueWrapper.toggle()
+                if queueWrapper.is ":visible"
+                        queueButton.text "Hide queue"
+                else
+                        queueButton.text "Show queue"
 
         $("tr", queueElement).live "click", ->
-                aPos = queueTable.fnGetPosition @
-                iPos = aPos[0]
-
-                song = queue.remove aPos
-                queueTable.fnDeleteRow iPos
+                iPos = table.fnGetPosition @
+                song = queue.remove iPos
                 player.play song
-
 
 PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         columns = []
@@ -456,29 +524,8 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 sWidth: "1px"
         columns.push indexColumn
 
-        titleColumn =
-                bSearchable: false
-                sTitle: "Title"
-                bSortable: false
-                sClass: "title"
-                sWidth: "300px"
-        columns.push titleColumn
-
-        albumColumn =
-                bSearchable: false
-                sTitle: "Album"
-                bSortable: false
-                sClass: "album"
-                sWidth: "300px"
-        columns.push albumColumn
-
-        artistColumn =
-                bSearchable: false
-                sTitle: "Artist"
-                bSortable: false
-                sClass: "artist"
-                sWidth: "300px"
-        columns.push artistColumn
+        for column in PLAYLIST_BASIC_COLUMNS
+                columns.push column
 
         tableData = []
         for song, index in songData
@@ -488,8 +535,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 tableData.push([index, title, album, artist])
 
         # Magical numbers based on Stetson-Harrison method.
-        extraCruftHeight = 44
-        playlistHeight = playlistElement.data('targetHeight') - extraCruftHeight
+        playlistHeight = playlistElement.data 'targetHeight'
         tableProperties =
                 sScrollY: "#{playlistHeight}px"
                 sScrollX: "100%"
@@ -562,7 +608,6 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         $('tr', playlistElement).live "click", ->
                 aData = table.fnGetData @
                 [index, data...] = aData
-                console.log index
                 queue.add songData[index]
 
         table.fnFilter = (string) ->
@@ -653,11 +698,14 @@ class Search
                 @worker.postMessage {type: "search", searchId: @searchId, value: string}
 
 
-HotkeysView = (player, queue) ->
+HotkeysView = (player, queue, toggleQueueElement) ->
         $(document).bind "keypress.b", ->
                 queue.next()
         $(document).bind "keypress.x", ->
                 player.togglePause()
+        $(document).bind "keypress.q", ->
+                toggleQueueElement.click()
+
 
 $(document).ready ->
         audio = new Audio();
@@ -677,13 +725,23 @@ $(document).ready ->
         playerInstance = new Player playerElement, preloadElement, localStorage, timeouter, playbackType
         songQueue = new SongQueue localStorage
 
-
         PlayerView playerContainer, playerInstance, songQueue
-        HotkeysView playerInstance, songQueue
+
+        HotkeysView playerInstance, songQueue, $("#toggle-queue")
 
         router = new PlayerRouter()
 
-        QueueView $("#toggle-queue"), $("#queue"), songQueue, playerInstance
+        playlistHeight = $(document).height() - playerContainer.height() - $(".description").height()
+        # Magical numbers based on Stetson-Harrison method.
+        extraCruftHeight = 44
+        targetHeight = playlistHeight - extraCruftHeight
+
+        queueTable = $("#queue")
+        queueTable.data "targetHeight", targetHeight
+        playlist = $("#playlist")
+        playlist.data "targetHeight", targetHeight
+
+        QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist
 
         search = new Search localStorage
 
@@ -726,10 +784,6 @@ $(document).ready ->
 
                 songQueue.updateAll files
 
-                playlist = $("#playlist")
-                playlistHeight = $(document).height() - playerContainer.height() - $(".description").height() - playlist.height()
-
-                playlist.data "targetHeight", playlistHeight
                 PlaylistView playlist, files, playerInstance, songQueue, router, search
 
                 search.on "initialize", ->
