@@ -48,14 +48,10 @@ converter = new FileConverter.FileConverterView logger, files, cache
 app.get '/file/*', converter.view
 
 parser = new Playlist.Parser logger
-parser.parse datafile, (err, result) ->
+files.open parser, datafile, (err) ->
         if err
-                logger.error "Failed to read data file: #{err}."
+                logger.error "Failed to create playlist data: #{err}."
                 return
-        files.open result, (err) =>
-                if err
-                        logger.error "Failed to create playlist data: #{err}."
-                        return
-                server = app.listen argv.port
-                server.on "listening", (err, value) ->
-                        console.log "Listening to port #{argv.port}."
+        server = app.listen argv.port
+        server.on "listening", (err, value) ->
+                console.log "Listening to port #{argv.port}."

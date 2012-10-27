@@ -1,3 +1,4 @@
+crypto = require 'crypto'
 fs = require 'fs'
 path = require "path"
 lazy = require 'lazy'
@@ -13,40 +14,85 @@ exports.FileDatabaseView = class FileDatabaseView
                 @filenames = {}
                 @cacheKey = ""
 
-        _cacheName: =>
-                return "#{@cacheKey}.json"
+        _cacheName: (type) =>
+                return "#{@cacheKey}.#{type}.json"
 
-        _cachePath: =>
-                return path.join @cacheDir, @_cacheName()
+        _cachePath: (type) =>
+                return path.join @cacheDir, @_cacheName(type)
 
-        _checkCache: (callback) =>
-                fs.exists @_cachePath(), (exists) =>
-                        callback exists
+        _readCacheData: (filename, callback) =>
+                stream = fs.ReadStream filename
+                stream.on "error", (err) =>
+                        @log.info "Failed to read playlist cache: #{err}."
+                        callback err
+                fileDataStr = ""
+                stream.on "data", (data) ->
+                        fileDataStr += data
+                stream.on "end", ->
+                        fileData = JSON.parse fileDataStr
+                        callback null, fileData
 
-        _createCache: (filedata, callback) =>
-                fs.writeFile @_cachePath(), JSON.stringify(filedata), "utf-8", (err) =>
-                        if err
-                                callback "Failed to write cache to '#{@_cachePath}': #{err}"
-                                return
-                        @log.info "Created cache."
+        _assignFileinfo: (fileData, callback) =>
+                @filenames = fileData.filenames
+                @cacheKey = fileData.cacheKey
+                callback null
+
+
+        _createChecksum: (filename, callback) =>
+                hash = crypto.createHash "sha512"
+                stream = fs.ReadStream filename
+                stream.on "error", (err) ->
+                        @log.error "Failed to open playlist: #{err}."
+                        callback err
+                stream.on "data", (data) ->
+                        hash.update data
+                stream.on "end", ->
+                        checksum = hash.digest "hex"
+                        callback null, checksum
+
+        _processCacheData: (err, parser, filename, fileData, callback) =>
+                if not err
+                        @log.info "Loaded cached file."
+                        @filenames = @_createFileMap fileData
                         callback null
-
-        open: (files, callback) =>
-                @cacheKey = files.cacheKey
-                @_createFileMap files
-                @_checkCache (exists) =>
-                        if exists
-                                @log.info "Found cached file database."
-                                callback null
+                        return
+                parser.parse filename, (err, files) =>
+                        if err
+                                callback err
                                 return
-                        @_createDatabase files, callback
+                        @filenames = @_createFileMap files
+                        @_createCache files, callback
+
+        _createCache: (files, callback) =>
+                filesFilename = @_cachePath "filedata"
+                fs.writeFile filesFilename, JSON.stringify(files), "utf-8", (err) =>
+                        if err
+                                @log.warn "Failed to create file info cache file: #{filesFilename}."
+
+                playlistData = @_createPlayerDatabase files
+                playlistFilename = @_cachePath "playlist"
+                fs.writeFile playlistFilename, JSON.stringify(playlistData), "utf-8", (err) =>
+                        if err
+                                @log.warn "Failed to create playlist cache file: #{playlistFilename}."
+                        callback null, files
+
+        open: (parser, filename, callback) =>
+                @_createChecksum filename, (err, checksum) =>
+                        if err
+                                callback err
+                                return
+                        @cacheKey = checksum
+                        @_readCacheData @_cachePath("filedata"), (err, fileData) =>
+                                @_processCacheData err, parser, filename, fileData, callback
 
         _createFileMap: (files) =>
-                @filenames = {}
-                for fileinfo in files.files
-                        @filenames[fileinfo.filename] = true
+                filenames = {}
+                # TODO unicode normalization for file names.
+                for fileinfo in files
+                        filenames[fileinfo.filename] = fileinfo.filename
+                return filenames
 
-        _createDatabase: (files, callback) =>
+        _createPlayerDatabase: (files) =>
                 @log.info "Creating a new file database."
                 filedata = {directories: [], fields: [], files: []}
                 directoryId = 0
@@ -81,7 +127,7 @@ exports.FileDatabaseView = class FileDatabaseView
                                         directoryIds[fullDirectory] = currentId
                         return "#{currentId}/#{basename}"
 
-                for fileinfo in files.files
+                for fileinfo in files
                         if not fileinfo.filename
                                 continue
 
@@ -105,16 +151,16 @@ exports.FileDatabaseView = class FileDatabaseView
                 filedata.files = shortFiles
                 filedata.fields = fields
                 @log.info "Finished reading file data."
-                @_createCache filedata, callback
+                return filedata
 
         exists: (filename) =>
                 return filename of @filenames
 
         getPath: (filename) =>
-                return filename
+                return @filenames[filename]
 
         _getLocation: =>
-                return "#{@cacheLocation}/#{@_cacheName()}"
+                return "#{@cacheLocation}/#{@_cacheName('playlist')}"
 
         view: (request, response) =>
                 location = @_getLocation()

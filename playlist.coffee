@@ -51,28 +51,11 @@ exports.Parser = class Parser
                 @filenamePerLine = new FilenamePerLineParser()
                 @audaciousPlaylist = new AudaciousPlaylistParser()
 
-        _createChecksum: (err, filename, files, callback) =>
-                if err
-                        callback err, null
-                        return
-                hash = crypto.createHash "sha512"
-                stream = fs.ReadStream filename
-                stream.on "data", (data) =>
-                        hash.update data
-                stream.on "end", =>
-                        checksum = hash.digest "hex"
-                        result =
-                                files: files
-                                cacheKey: checksum
-                        callback err, result
-
         parse: (filename, callback) =>
                 @log.info "Reading song database file: '#{filename}'."
                 if _s.endsWith filename, ".txt"
-                        @filenamePerLine.parse filename, (err, result) =>
-                                @_createChecksum err, filename, result, callback
+                        @filenamePerLine.parse filename, callback
                 else if _s.endsWith filename, ".audpl"
-                        @audaciousPlaylist.parse filename, (err, result) =>
-                                @_createChecksum err, filename, result, callback
+                        @audaciousPlaylist.parse filename, callback
                 else
                         callback "Failed to recognize format for file '#{filename}'"
