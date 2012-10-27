@@ -124,6 +124,8 @@ class PlaybackType
 class Player
         constructor: (@playerElement, @preloadElement, @storage, @timeouter, @playbackType) ->
                 _.extend @, Backbone.Events
+                @lastSource = null
+
                 @player = @playerElement.get(0)
                 @preloadPlayer = @preloadElement.get(0)
                 if @storage.currentSong
@@ -161,6 +163,14 @@ class Player
                         @trigger "durationchange", @player.duration
 
                 @playerElement.bind "loadeddata", =>
+                        # Prevent invalid songs playing when going forward on
+                        # playlist faster than songs load.
+                        currentSource = $("source", @playerElement).attr "src"
+                        console.log "last source: #{@lastSource}"
+                        console.log "player source: #{currentSource}"
+                        if currentSource != @lastSource
+                                console.log "returned"
+                                return
                         @startedPlaying = true
                         if @continuePosition
                                 @player.currentTime = @continuePosition
@@ -175,8 +185,11 @@ class Player
         play: (song) =>
                 @playerElement.empty()
                 encodedPath = encodeURIComponent song.filename
-                @playerElement.append "<source src=\"/file/#{encodedPath}?type=#{@playbackType.request}\" type='#{@playbackType.mime}' />"
+                songSource = "/file/#{encodedPath}?type=#{@playbackType.request}"
+                @playerElement.append "<source src=\"#{songSource}\" type='#{@playbackType.mime}' />"
                 @player.load()
+                @lastSource = songSource
+                console.log "last source: #{@lastSource}"
                 @currentSong = song
                 @storage.currentSong = JSON.stringify @currentSong
                 # Preload the currently playing song to handle cases where we
@@ -184,6 +197,7 @@ class Player
                 # send any events on failed playback, we need to use another
                 # trick to detect failures.
                 @preload song, false
+                @trigger "preparePlay", song
 
         preload: (song, react=true) =>
                 console.log "player#preload #{song.title} #{react}"
@@ -365,7 +379,7 @@ PlayerView = (playerElement, player, songQueue) ->
         artistElement = $("#artist", currentSongStatusElement)
         albumElement = $("#album", currentSongStatusElement)
         titleElement = $("#title", currentSongStatusElement)
-        player.on "play", (song) ->
+        player.on "preparePlay", (song) ->
                 currentSongStatusElement.attr "title", song.filename
                 artistElement.text song.artist
                 albumElement.text song.album
@@ -410,6 +424,8 @@ PlayerView = (playerElement, player, songQueue) ->
         player.on "durationchange", (duration) ->
                 positionSlider.attr "max", duration
                 durationElement.text viewTimeString duration
+        player.on "preparePlay", (song) ->
+                durationElement.text viewTimeString 0
 
 
 QueueView = (queueButton, queueElement, queue, player) ->
@@ -539,7 +555,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
 
         lastSong = null
 
-        player.on "play", (song) ->
+        player.on "preparePlay", (song) ->
                 if lastHashChange != song.filename
                         router.navigate "/" + song.filename
 
