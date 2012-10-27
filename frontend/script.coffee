@@ -479,7 +479,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
                 sScrollY: "#{playlistHeight}px"
                 sScrollX: "100%"
                 sScrollXInner: "100%"
-                bScrollCollapse: true
+                bScrollCollapse: false
                 bAutoWidth: false
                 sDom: "rtiS"
                 bDeferRender: true
@@ -540,7 +540,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 sScrollY: "#{playlistHeight}px"
                 sScrollX: "100%"
                 sScrollXInner: "100%"
-                bScrollCollapse: true
+                bScrollCollapse: false
                 bAutoWidth: false
                 sDom: "rtiS"
                 bDeferRender: true
