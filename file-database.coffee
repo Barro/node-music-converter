@@ -41,8 +41,8 @@ exports.FileDatabaseView = class FileDatabaseView
         _createChecksum: (filename, callback) =>
                 hash = crypto.createHash "sha512"
                 stream = fs.ReadStream filename
-                stream.on "error", (err) ->
-                        @log.error "Failed to open playlist: #{err}."
+                stream.on "error", (err) =>
+                        @log.error "Failed to open playlist file '#{filename}': #{err}."
                         callback err
                 stream.on "data", (data) ->
                         hash.update data

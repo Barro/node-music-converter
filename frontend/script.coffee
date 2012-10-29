@@ -5,29 +5,27 @@ MINIMUM_PROGRESS_FILES = 10000
 FILE_PROGRESS_UPDATE_INTERVAL = 2000
 
 PLAYLIST_BASIC_COLUMNS = []
-titleColumn =
+
+PLAYLIST_BASIC_COLUMNS.push
         bSearchable: false
         sTitle: "Title"
         bSortable: false
         sClass: "title"
         sWidth: "300px"
-PLAYLIST_BASIC_COLUMNS.push titleColumn
 
-albumColumn =
+PLAYLIST_BASIC_COLUMNS.push
         bSearchable: false
         sTitle: "Album"
         bSortable: false
         sClass: "album"
         sWidth: "300px"
-PLAYLIST_BASIC_COLUMNS.push albumColumn
 
-artistColumn =
+PLAYLIST_BASIC_COLUMNS.push
         bSearchable: false
         sTitle: "Artist"
         bSortable: false
         sClass: "artist"
         sWidth: "300px"
-PLAYLIST_BASIC_COLUMNS.push artistColumn
 
 simpleNormalizeName = (name) ->
         return name.replace /\s+/g, "-"
@@ -258,10 +256,9 @@ class Player
 
                         @trigger "preloadOk", song, react
 
-                settings =
+                request = $.ajax songPath,
                         type: "HEAD"
                         timeout: CONVERSION_WAIT_TIMEOUT
-                request = $.ajax songPath, settings
                 failCallback = (song) =>
                         @trigger "preloadFailed", song, react
                 errorCallback = (song) =>
@@ -478,7 +475,8 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
 
         # Magical numbers based on Stetson-Harrison method.
         playlistHeight = queueElement.data 'targetHeight'
-        tableProperties =
+
+        table = queueElement.dataTable
                 sScrollY: "#{playlistHeight}px"
                 sScrollX: "100%"
                 sScrollXInner: "100%"
@@ -489,7 +487,6 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
                 aaData: queueData
                 aoColumns: columns
 
-        table = queueElement.dataTable tableProperties
         queueWrapper = $("#queue_wrapper")
         queueWrapper.hide()
 
@@ -520,12 +517,11 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
 PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         columns = []
 
-        indexColumn =
+        columns.push
                 bSearchable: false
                 bVisible: false
                 bSortable: false
                 sWidth: "1px"
-        columns.push indexColumn
 
         for column in PLAYLIST_BASIC_COLUMNS
                 columns.push column
@@ -539,7 +535,8 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
 
         # Magical numbers based on Stetson-Harrison method.
         playlistHeight = playlistElement.data 'targetHeight'
-        tableProperties =
+
+        table = playlistElement.dataTable
                 sScrollY: "#{playlistHeight}px"
                 sScrollX: "100%"
                 sScrollXInner: "100%"
@@ -549,8 +546,6 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 bDeferRender: true
                 aaData: tableData
                 aoColumns: columns
-
-        table = playlistElement.dataTable tableProperties
 
         table.on "filter", (event, settings) =>
                 queue.updateVisible $.map settings.aiDisplay, (value, index) =>
@@ -813,7 +808,7 @@ $(document).ready ->
                 search.on "initialize", ->
                         Backbone.history.start()
 
-        request =
+        $.ajax
                 url: "/files"
                 dataType: 'json'
                 xhr: ->
@@ -825,4 +820,3 @@ $(document).ready ->
                         xhr.addEventListener "progress", progressHandler, false
                         return xhr
                 success : dataParser
-        $.ajax request
