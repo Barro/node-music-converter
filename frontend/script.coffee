@@ -498,7 +498,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
                 if data.length > 0
                         table.fnDeleteRow 0
 
-        queue.on "remove", (index) ->
+        queue.on "remove", (song, index) ->
                 table.fnDeleteRow index
 
         queueButton.on "click", ->
