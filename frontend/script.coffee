@@ -164,23 +164,22 @@ class Player
 
                 @player = @playerElement.get(0)
                 @preloadPlayer = @preloadElement.get(0)
-                if @storage.currentSong
-                        try
-                                @currentSong = JSON.parse @storage.currentSong
-                        catch error
-                                @currentSong = null
-                else
-                        @currentSong = null
                 @continuePosition = 0
-                if @storage.continuePosition
-                        @lastPosition = @storage.continuePosition
-                else
-                        @lastPosition = 0
                 @preloads = {}
                 @_bind()
                 if @storage.volume
                         @setVolume @storage.volume
                 @startedPlaying = false
+                if @storage.currentSong
+                        try
+                                @currentSong = JSON.parse @storage.currentSong
+                                @lastPosition = parseInt @storage.continuePosition
+                                @resumePlaying()
+                        catch error
+                                @currentSong = null
+                else
+                        @currentSong = null
+                        @lastPosition = 0
 
         _bind: =>
                 @playerElement.bind "pause", =>
@@ -236,6 +235,8 @@ class Player
                 @trigger "preparePlay", song
 
         preload: (song, react=true) =>
+                if not song
+                        return
                 console.log "player#preload #{song.title} #{react}"
                 if song.filename of @preloads
                         console.log "player#preload #{song.title} return"
