@@ -45,7 +45,7 @@ class VorbisConverter extends AudioConverter
         convert: (source, bitrate, target, callback) =>
                 options =
                         cwd: "/tmp/"
-                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '44100', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
+                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
                 ffmpeg.on 'exit', (code) =>
                         @_conversionDone target, code, callback
 
@@ -70,7 +70,7 @@ class Mp3Converter extends AudioConverter
         convert: (source, bitrate, target, callback) =>
                 options =
                         cwd: "/tmp/"
-                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '44100', '-ac', '2', '-loglevel', 'quiet', target], options
+                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target], options
                 ffmpeg.on 'exit', (code) =>
                         @_conversionDone target, code, callback
 
