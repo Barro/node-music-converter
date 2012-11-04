@@ -19,55 +19,65 @@ html.no-js(lang='en')
     link(rel='stylesheet', href='frontend/style.css')
     //-script(src='javascripts/vendor/modernizr-2.5.3.min.js')
   body
-    div(id="player", class="container-fluid")
-      div(class="row-fluid")
-        div(class="span2")
-          audio(class="player")
-          audio(class="preload-player", preload="auto")
-          span(id="player-controls")
-            button(id="play-control") Play
-            button(id="next") Next!
+    div(id="content")
+      div(id="player", class="container-fluid")
+        div(class="row-fluid")
+          div(class="span2")
+            audio(class="player")
+            audio(class="preload-player", preload="auto")
+            span(id="player-controls")
+              button(id="play-control") Play
+              button(id="next") Next!
 
-        div(id="player-status", class="span4")
-          input(class="position-slider", type="range", min="0", max="100", step="0.1")
-          &nbsp;
-          span(class="current-position") 00:00
-          /
-          span(class="duration") 00:00
-        div(class="span4")
-          input(class="volume-slider", type="range", min="0", max="100", step="0.1")
-          &nbsp;
-          span(class="volume-intensity")
+          div(id="player-status", class="span4")
+            input(class="position-slider", type="range", min="0", max="100", step="0.1")
+            &nbsp;
+            span(class="current-position") 00:00
+            /
+            span(class="duration") 00:00
+          div(class="span4")
+            input(class="volume-slider", type="range", min="0", max="100", step="0.1")
+            &nbsp;
+            span(class="volume-intensity")
 
-        div(class="span2")
-          button(id="toggle-queue") Show queue
-          &nbsp;
-          span(id="queue-length") 0
-          span(id="preload-status")
-            span(class='notloaded') ✘
+          div(class="span2")
+            button(id="toggle-queue") Show queue
+            &nbsp;
+            span(id="queue-length") 0
+            span(id="preload-status")
+              span(class='notloaded') ✘
 
-      div(class="row-fluid")
-        div(class="span4")
-          label(class="info-label") Search:&nbsp;
-            input(type="text", id="search")
+        div(class="row-fluid")
+          div(class="span4")
+            label(class="info-label") Search:&nbsp;
+              input(type="text", id="search")
 
-        div(id="status-current", class="span8")
-          span(id="title")
-          span(class="separator") &nbsp;/&nbsp;
-          span(id="album")
-          span(class="separator") &nbsp;/&nbsp;
-          span(id="artist")
+          div(id="status-current", class="span8")
+            span(id="title")
+            span(class="separator") &nbsp;/&nbsp;
+            span(id="album")
+            span(class="separator") &nbsp;/&nbsp;
+            span(id="artist")
 
-    div(id="initial-status")
-      div Download progress...&nbsp;
-        progress(id="download-progress", max="100", value="0")
-      div(style="display: none;") Parsing progress...&nbsp;
-        progress(id="parse-progress", max="100", value="0")
-    table(id="queue", class="playlist")
-    table(id="playlist", class="display playlist")
+      div(id="initial-status", class="show-after-height-calculation")
+        div Download progress...&nbsp;
+          progress(id="download-progress", max="100", value="0")
+        div(style="display: none;") Parsing progress...&nbsp;
+          progress(id="parse-progress", max="100", value="0")
 
-    div(class="description") Source code: 
-      a(href="https://bitbucket.org/barro/node-music-converter/") https://bitbucket.org/barro/node-music-converter/
+      div(class="dataTables_info remove-after-height-calculation") Showing 1 to 22 of 12345 entries
+      table(class="dataTable remove-after-height-calculation")
+        thead
+          tr
+            th Title
+            th Album
+            th Artist
+
+      table(id="queue", class="playlist")
+      table(id="playlist", class="display playlist")
+
+      div(class="description") Source code: 
+        a(href="https://bitbucket.org/barro/node-music-converter/") https://bitbucket.org/barro/node-music-converter/
 
     script(src='//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js')
     script(src='//ajax.googleapis.com/ajax/libs/jqueryui/1.9.0/jquery-ui.min.js')

@@ -6,6 +6,9 @@ FILE_PROGRESS_UPDATE_INTERVAL = 2000
 
 PLAYLIST_BASIC_COLUMNS = []
 
+MINIMUM_RETRY_TIMEOUT = 500
+MAXIMUM_RETRY_TIMEOUT = 5000
+
 PLAYLIST_BASIC_COLUMNS.push
         bSearchable: false
         sTitle: "Title"
@@ -31,7 +34,7 @@ simpleNormalizeName = (name) ->
         return name.replace /\s+/g, "-"
 
 class RetryTimeouter
-        constructor: (@minTimeout=500, @maxTimeout=5000) ->
+        constructor: (@minTimeout=MINIMUM_RETRY_TIMEOUT, @maxTimeout=MAXIMUM_RETRY_TIMEOUT) ->
                 @reset()
 
         increaseTimeout: =>
@@ -325,6 +328,19 @@ PlayerView = (playerElement, player, songQueue) ->
         songQueue.on "next", (song) ->
                 console.log "next -> player.play"
                 player.play song
+
+        player.on "preloadFailed", (song, react) ->
+                # Preloads may fail when player has the next song in cache
+                # and is disconnected from the network before the
+                # currently playing song is finished. This will trigger
+                # playback of the cached song and also the preload of the
+                # same song. But if the playback startup succeeds and preload
+                # fails, the song will still play, but preloadFailed event
+                # will also be triggered for that song. Therefore we'll check
+                # if that song is playing before we decide to skip to the
+                # next song in the queue.
+                if song == player.currentSong and not player.isPlaying()
+                        songQueue.next()
 
         nextSongButton = $("#next", playerElement)
         nextSongButton.click ->
@@ -736,15 +752,13 @@ $(document).ready ->
 
         router = new PlayerRouter()
 
-        playlistHeight = $(document).height() - playerContainer.height() - $(".description").height()
-        # Magical numbers based on Stetson-Harrison method.
-        extraCruftHeight = 44
-        targetHeight = playlistHeight - extraCruftHeight
+        playlistHeight = $(document).height() - $("#content").height()
+        $(".remove-after-height-calculation").remove()
 
         queueTable = $("#queue")
-        queueTable.data "targetHeight", targetHeight
+        queueTable.data "targetHeight", playlistHeight
         playlist = $("#playlist")
-        playlist.data "targetHeight", targetHeight
+        playlist.data "targetHeight", playlistHeight
 
         QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist
 
@@ -755,6 +769,8 @@ $(document).ready ->
         documentWidth = $(document).width()
         columnWidth = documentWidth / 3 - 20
         $("<style type='text/css'>.album, .artist, .title { max-width: #{columnWidth}; }</style>").appendTo("head");
+
+        $("#initial-status").show()
 
         dataParser = (data) ->
                 directories = data.directories
