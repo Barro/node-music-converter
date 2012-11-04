@@ -175,7 +175,7 @@ class FileConverter
                                 callback {data: ["Go to #{location}", 302], headers: {"location": location}}
 
         _conversionDone: (err, cacheInstance, tempname) =>
-                @log.debug "Conversion finished. Error: #{err}"
+                @log.debug "Conversion finished."
                 @_createResponse err, cacheInstance, tempname, (responseParams) =>
                         @log.debug "Sending response to clients: #{tempname}."
                         for response in @_ongoingConversions[cacheInstance.getKey()]
