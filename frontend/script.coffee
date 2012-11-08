@@ -1,3 +1,4 @@
+RESIZE_UPDATE_DELAY = 500
 SEARCH_UPDATE_PRELOAD_DELAY = 2000
 CONVERSION_WAIT_TIMEOUT = 180 * 60 * 1000
 
@@ -480,7 +481,9 @@ PlayerView = (playerElement, player, songQueue) ->
 songToQueueRow = (song) ->
         return [song.title, song.album, song.artist]
 
-QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
+initialPlayerComponentsHeight = (document) ->
+
+QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport) ->
         columns = []
 
         for column in PLAYLIST_BASIC_COLUMNS
@@ -490,11 +493,8 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
         for song in queue.fullQueue()
                 queueData.push songToQueueRow song
 
-        # Magical numbers based on Stetson-Harrison method.
-        playlistHeight = queueElement.data 'targetHeight'
-
         table = queueElement.dataTable
-                sScrollY: "#{playlistHeight}px"
+                sScrollY: "#{viewport.playlistHeight}px"
                 sScrollX: "100%"
                 sScrollXInner: "100%"
                 bScrollCollapse: false
@@ -531,7 +531,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement) ->
                 song = queue.remove iPos
                 player.play song
 
-PlaylistView = (playlistElement, songData, player, queue, router, search) ->
+PlaylistView = (playlistElement, songData, player, queue, router, search, viewport) ->
         columns = []
 
         columns.push
@@ -550,11 +550,8 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
                 title = song.title or 'UNKNOWN'
                 tableData.push([index, title, album, artist])
 
-        # Magical numbers based on Stetson-Harrison method.
-        playlistHeight = playlistElement.data 'targetHeight'
-
         table = playlistElement.dataTable
-                sScrollY: "#{playlistHeight}px"
+                sScrollY: "#{viewport.playlistHeight}px"
                 sScrollX: "100%"
                 sScrollXInner: "100%"
                 bScrollCollapse: false
@@ -648,6 +645,10 @@ PlaylistView = (playlistElement, songData, player, queue, router, search) ->
         $("#search").keyup doSearch
         $("#search").change doSearch
 
+        # viewport.on "resize", (width, height) ->
+        # oSettings = table.fnSettings()
+        # oSettings.oScroll.sY = viewport.playlistHeight
+        # table.fnDraw();
 
 class PlayerRouter extends Backbone.Router
         routes:
@@ -722,6 +723,28 @@ HotkeysView = (player, queue, toggleQueueElement) ->
                 toggleQueueElement.click()
 
 
+class Viewport
+        constructor: (@document) ->
+                _.extend @, Backbone.Events
+                @decoratorHeight = $("#content", @document).height()
+                @playlistHeight = $(@document).height() - @decoratorHeight
+                $(".remove-after-height-calculation", @document).remove()
+                @lastSizeUpdate = 0
+
+        _updateHeight: =>
+                @playlistHeight = $(@document).height() - @decoratorHeight
+                @trigger "resize"
+
+        _bind: =>
+                $(@document).resize =>
+                        @lastSizeUpdate++
+                        currentUpdate = @lastSizeUpdate
+                        updateCallback = =>
+                                if @lastSizeUpdate != currentUpdate
+                                        return
+                                @_updateHeight()
+                        setTimeout updateCallback, RESIZE_UPDATE_DELAY
+
 $(document).ready ->
         audio = new Audio();
         playbackType = null
@@ -752,15 +775,11 @@ $(document).ready ->
 
         router = new PlayerRouter()
 
-        playlistHeight = $(document).height() - $("#content").height()
-        $(".remove-after-height-calculation").remove()
+        viewport = new Viewport document
 
         queueTable = $("#queue")
-        queueTable.data "targetHeight", playlistHeight
         playlist = $("#playlist")
-        playlist.data "targetHeight", playlistHeight
-
-        QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist
+        QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
 
         search = new Search localStorage
 
@@ -818,7 +837,7 @@ $(document).ready ->
 
                 $("#initial-status").append $("<div>Creating playlist...</div>")
 
-                PlaylistView playlist, files, playerInstance, songQueue, router, search
+                PlaylistView playlist, files, playerInstance, songQueue, router, search, viewport
 
                 $("#initial-status").remove()
 
