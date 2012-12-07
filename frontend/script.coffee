@@ -714,13 +714,19 @@ class Search
                 @worker.postMessage {type: "search", searchId: @searchId, value: string}
 
 
-HotkeysView = (player, queue, toggleQueueElement) ->
+HotkeysView = (player, queue, toggleQueueElement, searchField) ->
         $(document).bind "keypress.b", ->
                 queue.next()
         $(document).bind "keypress.x", ->
                 player.togglePause()
         $(document).bind "keypress.q", ->
                 toggleQueueElement.click()
+        $(document).bind "keypress.j", ->
+                searchField.focus()
+                return false
+        $(searchField).bind "keyup.return", ->
+                searchField.blur()
+                return false
 
 
 class Viewport
@@ -771,7 +777,7 @@ $(document).ready ->
                 $("#album").text currentSong.album
                 $("#artist").text currentSong.artist
 
-        HotkeysView playerInstance, songQueue, $("#toggle-queue")
+        HotkeysView playerInstance, songQueue, $("#toggle-queue"), $("#search")
 
         router = new PlayerRouter()
 

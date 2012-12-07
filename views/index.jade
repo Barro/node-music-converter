@@ -26,8 +26,8 @@ html.no-js(lang='en')
             audio(class="player")
             audio(class="preload-player", preload="auto")
             span(id="player-controls")
-              button(id="play-control") Play
-              button(id="next") Next!
+              button(id="play-control", title="Press 'x' to play/pause.") Play
+              button(id="next", title="Press 'b' to jump to next.") Next!
 
           div(id="player-status", class="span4")
             input(class="position-slider", type="range", min="0", max="100", step="0.1")
@@ -41,7 +41,7 @@ html.no-js(lang='en')
             span(class="volume-intensity")
 
           div(class="span2")
-            button(id="toggle-queue") Show queue
+            button(id="toggle-queue", title="Press 'q' to toggle queue.") Show queue
             &nbsp;
             span(id="queue-length") 0
             span(id="preload-status")
@@ -50,7 +50,7 @@ html.no-js(lang='en')
         div(class="row-fluid")
           div(class="span4")
             label(class="info-label") Search:&nbsp;
-              input(type="text", id="search")
+              input(type="text", id="search", title="Press 'j' to focus and 'return' to lose focus.")
 
           div(id="status-current", class="span8")
             span(id="title")
