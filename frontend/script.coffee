@@ -10,6 +10,8 @@ PLAYLIST_BASIC_COLUMNS = []
 MINIMUM_RETRY_TIMEOUT = 500
 MAXIMUM_RETRY_TIMEOUT = 5000
 
+VOLUME_STEPS = 100
+
 PLAYLIST_BASIC_COLUMNS.push
         bSearchable: false
         sTitle: "Title"
@@ -728,6 +730,16 @@ HotkeysView = (player, queue, toggleQueueElement, searchField) ->
                 searchField.blur()
                 return false
 
+        # TODO Might be a better idea to have a relative volume control instead
+        # of absolute.
+        $(document).bind "keypress.+", ->
+                currentVolume = Math.round VOLUME_STEPS * player.getVolume()
+                newVolume = Math.min(VOLUME_STEPS, currentVolume + 1)
+                player.setVolume newVolume / VOLUME_STEPS
+        $(document).bind "keypress.-", ->
+                currentVolume = Math.round VOLUME_STEPS * player.getVolume()
+                newVolume = Math.max(0, currentVolume - 1)
+                player.setVolume newVolume / VOLUME_STEPS
 
 class Viewport
         constructor: (@document) ->
