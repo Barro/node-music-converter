@@ -446,6 +446,9 @@ PlayerView = (playerElement, player, songQueue) ->
         albumElement.click ->
                 searchValue = "album:#{simpleNormalizeName albumElement.text()}-"
                 $("#search").val(searchValue).change()
+        titleElement.click ->
+                if player.currentSong
+                        songQueue.add player.currentSong
 
         volumeSlider = $(".volume-slider", playerElement)
         showVolume = (volume) ->
@@ -618,6 +621,19 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
         player.on "preparePlay", (song) ->
                 if lastHashChange != song.filename
                         router.navigate "/" + song.filename
+
+        previousRow = null
+        focusRow = (song) ->
+                if previousRow
+                        $(previousRow).removeClass "playing"
+                row = table.fnGetNodes song.index
+                $(row).addClass "playing"
+                previousRow = row
+
+        # Focus on the current song.
+        player.on "preparePlay", focusRow
+        if player.currentSong
+                focusRow player.currentSong
 
         $('tr', playlistElement).live "click", ->
                 aData = table.fnGetData @
@@ -846,6 +862,7 @@ $(document).ready ->
                                 fileObject.album = fileObject.album or albumPart
                                 fileObject.title = fileObject.title or titlePart
 
+                        fileObject.index = files.length
                         files.push fileObject
 
                 progressCallback()
