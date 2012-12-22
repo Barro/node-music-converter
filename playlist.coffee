@@ -1,9 +1,11 @@
 crypto = require "crypto"
 fs = require "fs"
-lazy = require 'lazy'
+lazy = require "lazy"
 _s = require "underscore.string"
 
 exports.AudaciousPlaylistParser = class AudaciousPlaylistParser
+        postfix: ".audpl"
+
         parse: (file, callback) =>
                 filereader = new lazy fs.createReadStream(file)
                 result = []
@@ -20,6 +22,9 @@ exports.AudaciousPlaylistParser = class AudaciousPlaylistParser
                                         uri: value
                                 if _s.startsWith value, "file://"
                                         currentItem.filename = value.substring "file://".length
+                                else
+                                        # We do not actually support other than file protocols.
+                                        result.pop()
                         else if value
                                 currentItem[option] = value
 
@@ -32,6 +37,8 @@ exports.AudaciousPlaylistParser = class AudaciousPlaylistParser
 
 
 exports.FilenamePerLineParser = class FilenamePerLineParser
+        postfix: ".txt"
+
         parse: (filename, callback) =>
                 result = []
                 filereader = new lazy fs.createReadStream(filename)
@@ -48,14 +55,18 @@ exports.FilenamePerLineParser = class FilenamePerLineParser
 
 exports.Parser = class Parser
         constructor: (@log) ->
-                @filenamePerLine = new FilenamePerLineParser()
-                @audaciousPlaylist = new AudaciousPlaylistParser()
+                @parsers = [
+                        new FilenamePerLineParser(),
+                        new AudaciousPlaylistParser(),
+                        ]
 
         parse: (filename, callback) =>
                 @log.info "Reading song database file: '#{filename}'."
-                if _s.endsWith filename, ".txt"
-                        @filenamePerLine.parse filename, callback
-                else if _s.endsWith filename, ".audpl"
-                        @audaciousPlaylist.parse filename, callback
-                else
+                parsed = false
+                for parser in @parsers
+                        if _s.endsWith filename, parser.postfix
+                                parsed = true
+                                parser.parse filename, callback
+                                break
+                if not parsed
                         callback "Failed to recognize format for file '#{filename}'"
