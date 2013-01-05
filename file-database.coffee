@@ -4,13 +4,68 @@ path = require "path"
 lazy = require 'lazy'
 unorm = require 'unorm'
 
+
 stripEmptyItems = (list) ->
         while list[list.length - 1] == ""
                 list.pop()
         return list
 
+
+normalizeAttribute = (attribute) ->
+        if not attribute
+                return ""
+        attributeNormalized = unorm.nfkd attribute
+        if attribute == attributeNormalized
+                return ""
+        return attributeNormalized
+
+
+class FilenameShortener
+        constructor: ->
+                @directoryId = 0
+                @directoryIds = {"": 0}
+                @directories = [""]
+
+        shorten: (filename) =>
+                parts = filename.split "/"
+                # Remove filename
+                basename = parts.pop()
+                if parts.length == 0
+                        return basename
+
+                firstPart = parts.shift()
+                fullDirectory = firstPart
+                if firstPart of @directoryIds
+                        currentId = @directoryIds[firstPart]
+                else
+                        currentId = @directories.length
+                        addPart = "" + firstPart
+                        # This style of directory normalization adds 1.1 %
+                        # with my test set to the compressed file size.
+                        normalizedPart = normalizeAttribute firstPart
+                        if normalizedPart
+                                addPart += "/#{normalizedPart}"
+                        @directories.push addPart
+                        @directoryIds[fullDirectory] = firstPart
+
+                for part in parts
+                        fullDirectory += "/#{part}"
+                        if fullDirectory of @directoryIds
+                                currentId = @directoryIds[fullDirectory]
+                        else
+                                normalizedPart = normalizeAttribute part
+                                addPart = "#{currentId}/#{part}"
+                                if normalizedPart
+                                        addPart += "/#{normalizedPart}"
+                                @directories.push addPart
+                                currentId = @directories.length - 1
+                                @directoryIds[fullDirectory] = currentId
+                return "#{currentId}/#{basename}"
+defaultShortener = new FilenameShortener()
+
+
 exports.FileDatabaseView = class FileDatabaseView
-        constructor: (@cacheDir, @cacheLocation, @log) ->
+        constructor: (@cacheDir, @cacheLocation, @log, @filenameShortener=defaultShortener) ->
                 @filenames = {}
                 @cacheKey = ""
 
@@ -21,15 +76,21 @@ exports.FileDatabaseView = class FileDatabaseView
                 return path.join @cacheDir, @_cacheName(type)
 
         _readCacheData: (filename, callback) =>
+
                 stream = fs.ReadStream filename
                 stream.on "error", (err) =>
                         @log.info "Failed to read playlist cache: #{err}."
                         callback err
                 fileDataStr = ""
-                stream.on "data", (data) ->
+                stream.on "data", (data) =>
                         fileDataStr += data
-                stream.on "end", ->
-                        fileData = JSON.parse fileDataStr
+                stream.on "end", =>
+                        try
+                                fileData = JSON.parse fileDataStr
+                        catch err
+                                @log.warn "Failed to parse playlist cache data: #{err}."
+                                callback err
+                                return
                         callback null, fileData
 
         _assignFileinfo: (fileData, callback) =>
@@ -94,60 +155,42 @@ exports.FileDatabaseView = class FileDatabaseView
 
         _createPlayerDatabase: (files) =>
                 @log.info "Creating a new file database."
-                filedata = {directories: [], fields: [], files: []}
-                directoryId = 0
-                directoryIds = {"": 0}
                 shortFiles = []
-                fields = ['filename', 'title', 'artist', 'album']
-                directories = [""]
-
-                shortenFilename = (filename) ->
-                        parts = filename.split "/"
-                        # Remove filename
-                        basename = parts.pop()
-                        if parts.length == 0
-                                return basename
-
-                        firstPart = parts.shift()
-                        fullDirectory = firstPart
-                        if firstPart of directoryIds
-                                currentId = directoryIds[firstPart]
-                        else
-                                currentId = directories.length
-                                directories.push firstPart
-                                directoryIds[fullDirectory] = firstPart
-
-                        for part in parts
-                                fullDirectory += "/#{part}"
-                                if fullDirectory of directoryIds
-                                        currentId = directoryIds[fullDirectory]
-                                else
-                                        directories.push "#{currentId}/#{part}"
-                                        currentId = directories.length - 1
-                                        directoryIds[fullDirectory] = currentId
-                        return "#{currentId}/#{basename}"
+                fields = ["filename", "title", "artist", "album", "filename_normalized", "title_normalized", "artist_normalized", "album_normalized"]
 
                 for fileinfo in files
                         if not fileinfo.filename
                                 continue
 
-                        file = [shortenFilename fileinfo.filename]
+                        shortenedFilename = @filenameShortener.shorten fileinfo.filename
+                        file = [shortenedFilename]
 
-                        if fileinfo.title
-                                file.push unorm.nfkd fileinfo.title
-                        else
-                                file.push ""
-                        if fileinfo.artist
-                                file.push unorm.nfkd fileinfo.artist
-                        else
-                                file.push ""
-                        if fileinfo.album
-                                file.push unorm.nfkd fileinfo.album
-                        else
-                                file.push ""
+                        file.push fileinfo.title or ""
+                        file.push fileinfo.artist or ""
+                        file.push fileinfo.album or ""
+
+                        # By adding normalized items in the end of these arrays
+                        # we have about 10 % increase in the song list size
+                        # when compressed and 20 % increse when uncompressed.
+                        # This is when songs have quite many kana characters on
+                        # average in their names and about 40 % of songs have
+                        # at least one attribute that gets normalized.
+                        # This is probably faster to do here than on the client
+                        # side when taking into account that clients can be
+                        # really slow but the relative download time increase
+                        # is not that high.
+
+                        nodirFilename = shortenedFilename.replace /^\d+\//, ""
+                        file.push normalizeAttribute nodirFilename
+                        file.push normalizeAttribute fileinfo.title
+                        file.push normalizeAttribute fileinfo.artist
+                        file.push normalizeAttribute fileinfo.album
+
                         file = stripEmptyItems file
                         shortFiles.push file
-                filedata.directories = directories
+
+                filedata = {}
+                filedata.directories = @filenameShortener.directories
                 filedata.files = shortFiles
                 filedata.fields = fields
                 @log.info "Finished reading file data."

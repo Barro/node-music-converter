@@ -829,7 +829,7 @@ $(document).ready ->
                 directories = data.directories
                 for index in [1..(directories.length - 1)]
                         directory = directories[index]
-                        [parent, name] = directory.split "/"
+                        [parent, name, normalizedName] = directory.split "/"
                         directories[index] = "#{directories[parseInt(parent)]}/#{name}"
 
                 progressCallback = ->
