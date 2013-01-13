@@ -7,6 +7,8 @@ temp = require 'temp'
 # 1 minute of 160 kbps music.
 FAILED_CONVERSION_IS_OK_SIZE = 60 * 160 * 1000 / 8
 
+FFMPEG = "ffmpeg"
+
 class AudioConverter
         _conversionDone: (target, code, callback) =>
                 if code != 0
@@ -23,6 +25,27 @@ class AudioConverter
                                 callback "Failed file conversion. Not enough data converted (#{stats.size} bytes)."
                         return
                 @_audioGain target, callback
+
+
+class OpusConverter extends AudioConverter
+        suffix: =>
+                return "opus"
+
+        audioType: =>
+                return "audio/opus"
+
+        mimeType: =>
+                return "audio/ogg"
+
+        _audioGain: (target, callback) =>
+                callback null
+
+        convert: (source, bitrate, target, callback) =>
+                options =
+                        cwd: "/tmp/"
+                ffmpeg = child_process.spawn FFMPEG, ["-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
+                ffmpeg.on 'exit', (code) =>
+                        @_conversionDone target, code, callback
 
 
 class VorbisConverter extends AudioConverter
@@ -45,7 +68,7 @@ class VorbisConverter extends AudioConverter
         convert: (source, bitrate, target, callback) =>
                 options =
                         cwd: "/tmp/"
-                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
+                ffmpeg = child_process.spawn FFMPEG, ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
                 ffmpeg.on 'exit', (code) =>
                         @_conversionDone target, code, callback
 
@@ -70,7 +93,7 @@ class Mp3Converter extends AudioConverter
         convert: (source, bitrate, target, callback) =>
                 options =
                         cwd: "/tmp/"
-                ffmpeg = child_process.spawn "ffmpeg", ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target], options
+                ffmpeg = child_process.spawn FFMPEG, ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target], options
                 ffmpeg.on 'exit', (code) =>
                         @_conversionDone target, code, callback
 
