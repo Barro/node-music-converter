@@ -206,6 +206,7 @@ exports.FileDatabaseView = class FileDatabaseView
                 return "#{@cacheLocation}/#{@_cacheName('playlist')}"
 
         view: (request, response) =>
+                console.log request.path
                 location = @_getLocation()
                 response.set "location", location
                 response.send "Go to #{location}", 302

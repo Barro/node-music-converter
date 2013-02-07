@@ -226,7 +226,7 @@ class Player
         play: (song) =>
                 @playerElement.empty()
                 encodedPath = encodeURIComponent song.filename
-                songSource = "/file/#{encodedPath}?type=#{@playbackType.request}"
+                songSource = "file/#{encodedPath}?type=#{@playbackType.request}"
                 @playerElement.append "<source src=\"#{songSource}\" type='#{@playbackType.mime}' />"
                 @player.load()
                 @lastSource = songSource
@@ -249,7 +249,7 @@ class Player
                         return
                 @preloads[song.filename] = new Date()
                 encodedPath = encodeURIComponent song.filename
-                songPath = "/file/#{encodedPath}?type=#{@playbackType.request}"
+                songPath = "file/#{encodedPath}?type=#{@playbackType.request}"
                 @trigger "preloadStart", song, react
 
                 successCallback = (song) =>
@@ -880,7 +880,7 @@ $(document).ready ->
                         Backbone.history.start()
 
         $.ajax
-                url: "/files"
+                url: "files"
                 dataType: 'json'
                 xhr: ->
                         xhr = new window.XMLHttpRequest()

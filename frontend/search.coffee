@@ -1,4 +1,4 @@
-importScripts "/external/js/unorm.min.js"
+importScripts "../external/js/unorm.min.js"
 
 log = (message) ->
         data =
