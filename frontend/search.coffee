@@ -77,14 +77,16 @@ class SearchCache
                 @searchCache = {"": []}
                 @searchDatabase = []
 
-        initialize: (songs) =>
-                @searchCache = {}
-                fullList = [0...songs.length]
+        setDatabase: (@searchDatabase) =>
+                fullList = [0...@searchDatabase.length]
                 @searchCache[""] = fullList
+
+        initialize: (songs) =>
                 @searchDatabase = []
                 for song in songs
                         @searchDatabase.push createSearchIndex song
-                        # @searchDatabase.push song.filename
+                @setDatabase @searchDatabase
+                return @searchDatabase
 
         _getBaseCache: (key) =>
                 baseCacheKey = key

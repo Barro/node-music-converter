@@ -207,10 +207,10 @@ class Player
                         # Prevent invalid songs playing when going forward on
                         # playlist faster than songs load.
                         currentSource = $("source", @playerElement).attr "src"
-                        console.log "last source: #{@lastSource}"
-                        console.log "player source: #{currentSource}"
+                        # console.log "last source: #{@lastSource}"
+                        # console.log "player source: #{currentSource}"
                         if currentSource != @lastSource
-                                console.log "returned"
+                                # console.log "returned"
                                 return
                         @startedPlaying = true
                         if @continuePosition
@@ -230,7 +230,7 @@ class Player
                 @playerElement.append "<source src=\"#{songSource}\" type='#{@playbackType.mime}' />"
                 @player.load()
                 @lastSource = songSource
-                console.log "last source: #{@lastSource}"
+                # console.log "last source: #{@lastSource}"
                 @currentSong = song
                 @storage.currentSong = JSON.stringify @currentSong
                 # Preload the currently playing song to handle cases where we
@@ -243,9 +243,9 @@ class Player
         preload: (song, react=true) =>
                 if not song
                         return
-                console.log "player#preload #{song.title} #{react}"
+                # console.log "player#preload #{song.title} #{react}"
                 if song.filename of @preloads
-                        console.log "player#preload #{song.title} return"
+                        # console.log "player#preload #{song.title} return"
                         return
                 @preloads[song.filename] = new Date()
                 encodedPath = encodeURIComponent song.filename
@@ -319,17 +319,17 @@ PlayerView = (playerElement, player, songQueue) ->
         queueStatus = $("#queue-length", playerElement)
         queueStatus.text songQueue.length()
         songQueue.on "add", (song) ->
-                console.log "add -> queuestatus"
+                # console.log "add -> queuestatus"
                 queueStatus.text songQueue.length()
         songQueue.on "remove", (song, index) ->
-                console.log "remove -> queuestatus"
+                # console.log "remove -> queuestatus"
                 queueStatus.text songQueue.length()
         songQueue.on "next", (song) ->
-                console.log "next -> queuestatus"
+                # console.log "next -> queuestatus"
                 queueStatus.text songQueue.length()
 
         songQueue.on "next", (song) ->
-                console.log "next -> player.play"
+                # console.log "next -> player.play"
                 player.play song
 
         player.on "preloadFailed", (song, react) ->
@@ -347,20 +347,20 @@ PlayerView = (playerElement, player, songQueue) ->
 
         nextSongButton = $("#next", playerElement)
         nextSongButton.click ->
-                console.log "nextSongButton.click -> next"
+                # console.log "nextSongButton.click -> next"
                 songQueue.next()
 
         nextSongStatusElement = $("#preload-status", playerElement)
 
         player.on "play", (song) ->
-                console.log "player.play preload"
+                # console.log "player.play preload"
                 player.preload songQueue.peek(), true
 
         lastPreloadSong = null
         player.on "preloadStart", (song, react) ->
-                console.log "player.preloadStart #{react} #{song.filename}"
+                # console.log "player.preloadStart #{react} #{song.filename}"
                 if not react
-                        console.log "player.preloadStart -> noreact"
+                        # console.log "player.preloadStart -> noreact"
                         return
                 lastPreloadSong = song
                 newsong = $("<span class='notloaded'>✘</span>")
@@ -368,26 +368,26 @@ PlayerView = (playerElement, player, songQueue) ->
                 nextSongStatusElement.html newsong
 
         player.on "preloadFailed", (song, react) ->
-                console.log "player.preloadFailed #{react} #{song.filename}"
+                # console.log "player.preloadFailed #{react} #{song.filename}"
                 songQueue.clearNext()
                 newSong = songQueue.peek()
-                if react
-                        console.log "player.preloadFailed -> react"
+                # if react
+                        # console.log "player.preloadFailed -> react"
                 player.preload newSong, react
 
         player.on "preloadOk", (song, react) ->
-                console.log "player.preloadOk #{react} #{song.filename}"
+                # console.log "player.preloadOk #{react} #{song.filename}"
                 if not react
                         return
                 if song == lastPreloadSong
-                        console.log "player.preloadOk #{song.title} -> lastPreloadSong"
+                        # console.log "player.preloadOk #{song.title} -> lastPreloadSong"
                         newsong = $(".notloaded", nextSongStatusElement)
                         newsong.removeClass "notloaded"
                         newsong.addClass "loaded"
                         newsong.text "✓"
 
                 if not player.isPlaying()
-                        console.log "player.preloadOk #{song.title} -> notPlaying"
+                        # console.log "player.preloadOk #{song.title} -> notPlaying"
                         player.play song
 
         preloadOnQueueChange = ->
@@ -404,9 +404,9 @@ PlayerView = (playerElement, player, songQueue) ->
                 lastUpdateDelayId++
                 updateDelayId = lastUpdateDelayId
                 updateOnChange = (delayId) ->
-                        console.log "update on change"
+                        # console.log "update on change"
                         if updateDelayId != lastUpdateDelayId
-                                console.log "not newest"
+                                # console.log "not newest"
                                 return
                         preloadOnQueueChange()
                 setTimeout updateOnChange, SEARCH_UPDATE_PRELOAD_DELAY
@@ -414,12 +414,12 @@ PlayerView = (playerElement, player, songQueue) ->
 
         playSongButton = $("#play-control", playerElement)
         playSongButton.click ->
-                console.log "playSongButton.click"
+                # console.log "playSongButton.click"
                 if player.isPlaying()
-                        console.log "playSongButton.click -> isPlaying"
+                        # console.log "playSongButton.click -> isPlaying"
                         player.togglePause()
                 else
-                        console.log "playSongButton.click -> queueNext"
+                        # console.log "playSongButton.click -> queueNext"
                         songQueue.next()
 
         player.on "pause", ->
@@ -427,7 +427,7 @@ PlayerView = (playerElement, player, songQueue) ->
         player.on "resume", ->
                 playSongButton.text "Pause"
         player.on "ended", ->
-                console.log "player.ended -> next"
+                # console.log "player.ended -> next"
                 songQueue.next()
 
         currentSongStatusElement = $("#status-current", playerElement)
@@ -581,10 +581,10 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
                 # Front page for the first time:
                 if not player.startedPlaying
                         if player.currentSong and (not songName? or player.currentSong.filename == songName)
-                                console.log "resume playing"
+                                # console.log "resume playing"
                                 player.resumePlaying()
                         else
-                                console.log "next song"
+                                # console.log "next song"
                                 queue.next()
                         return
 
@@ -592,7 +592,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
                 # something.
                 if player.startedPlaying
                         if songName == player.currentSong.filename
-                                console.log "current song"
+                                # console.log "current song"
                                 return
 
                 # Cases where the song is selected through the hash element
@@ -600,7 +600,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
                 $(songData).each (index, element) =>
                         song = songData[index]
                         if song.filename == songName
-                                console.log "playing"
+                                # console.log "playing"
                                 player.play song
                                 queue.clearNext()
                                 return false
@@ -779,6 +779,8 @@ class Viewport
                                 @_updateHeight()
                         setTimeout updateCallback, RESIZE_UPDATE_DELAY
 
+START_LOAD = (new Date()).getTime()
+
 $(document).ready ->
         audio = new Audio();
         playbackType = null
@@ -815,8 +817,6 @@ $(document).ready ->
         playlist = $("#playlist")
         QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
 
-        search = new Search localStorage
-
         # Unfortunately DataTables does not support relative widths. So we need
         # to calculate column widths here.
         documentWidth = $(document).width()
@@ -825,7 +825,8 @@ $(document).ready ->
 
         $("#initial-status").show()
 
-        dataParser = (data) ->
+        dataParser = (data, callback) ->
+                start = (new Date()).getTime()
                 directories = data.directories
                 for index in [1..(directories.length - 1)]
                         directory = directories[index]
@@ -866,6 +867,10 @@ $(document).ready ->
                         files.push fileObject
 
                 progressCallback()
+                createPlayerElements files
+
+        createPlayerElements = (files) ->
+                search = new Search localStorage
                 search.initialize files
 
                 songQueue.updateAll files
@@ -877,6 +882,8 @@ $(document).ready ->
                 $("#initial-status").remove()
 
                 search.on "initialize", ->
+                        end = (new Date()).getTime()
+                        console.log "TOTAL #{end - START_LOAD}"
                         Backbone.history.start()
 
         $.ajax

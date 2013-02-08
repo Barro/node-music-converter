@@ -41,16 +41,16 @@ app.configure =>
         app.use urlPath("external"), gzippo.staticGzip "#{__dirname}/external"
         app.use cacheLocation, gzippo.staticGzip cacheDir
 
-app.get root, (req, res) ->
-        res.render "index", {root: urlPath ''}
-app.get urlPath(''), (req, res) ->
-        res.render "index", {root: urlPath ''}
-
 FileDatabase = require './file-database'
 
 Playlist = require "./playlist"
 
 files = new FileDatabase.FileDatabaseView cacheDir, cacheLocation, logger
+
+indexView = (req, res) ->
+        res.render "index", {root: urlPath(''), cacheKey: files.cacheKey}
+app.get root, indexView
+app.get urlPath(''), indexView
 
 app.get urlPath('files'), files.view
 
