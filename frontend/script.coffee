@@ -782,6 +782,8 @@ class Viewport
 START_LOAD = (new Date()).getTime()
 
 $(document).ready ->
+        $('[data-toggle=tooltip]').tooltip({delay: { show: 400, hide: 100 }})
+
         audio = new Audio();
         playbackType = null
         if (audio.canPlayType("audio/ogg"))

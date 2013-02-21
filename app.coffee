@@ -49,7 +49,8 @@ files = new FileDatabase.FileDatabaseView cacheDir, cacheLocation, logger
 
 indexView = (req, res) ->
         res.render "index", {root: urlPath(''), cacheKey: files.cacheKey}
-app.get root, indexView
+if root
+        app.get root, indexView
 app.get urlPath(''), indexView
 
 app.get urlPath('files'), files.view

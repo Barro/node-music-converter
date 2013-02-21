@@ -17,6 +17,7 @@ html.no-js(lang='en')
     meta(name='viewport', content='width=device-width')
     link(rel='stylesheet', href='external/css/smoothness/jquery-ui-1.9.2.custom.css')
     link(rel='stylesheet', href='external/css/bootstrap.min.css')
+    link(rel='stylesheet', href='external/css/bootstrap-responsive.min.css')
     link(rel='stylesheet', href='frontend/style.css')
     script(src='external/js/modernizr.min.js')
   body
@@ -27,38 +28,38 @@ html.no-js(lang='en')
             audio(class="player")
             audio(class="preload-player", preload="auto")
             span(id="player-controls")
-              button(id="play-control", title="Press 'x' to play/pause.") Play
-              button(id="next", title="Press 'b' to jump to next.") Next!
+              button(id="play-control", title="Press 'x' to play/pause.", data-toggle="tooltip", data-placement="right") Play
+              button(id="next", title="Press 'b' to jump to next.", data-toggle="tooltip", data-placement="right") Next!
 
           div(id="player-status", class="span4")
-            input(class="position-slider", type="range", min="0", max="100", step="0.1")
+            input(class="position-slider", type="range", min="0", max="100", step="0.1", title="Playback position.", data-toggle="tooltip", data-placement="bottom")
             &nbsp;
-            span(class="current-position") 00:00
+            span(class="current-position", title="Playback position.", data-toggle="tooltip", data-placement="bottom") 00:00
             /
-            span(class="duration") 00:00
+            span(class="duration", title="Song duration.", data-toggle="tooltip", data-placement="bottom") 00:00
           div(class="span4")
-            input(class="volume-slider", type="range", min="0", max="100", step="0.1", title="Press '+'/'-' to adjust volume.")
+            input(class="volume-slider", type="range", min="0", max="100", step="0.1", title="Press '+'/'-' to adjust volume.", data-toggle="tooltip", data-placement="bottom")
             &nbsp;
-            span(class="volume-intensity")
+            span(class="volume-intensity", title="Volume 0-100. Press '+'/'-' to adjust volume.", data-toggle="tooltip", data-placement="bottom")
 
           div(class="span2")
-            button(id="toggle-queue", title="Press 'q' to toggle queue.") Show queue
+            button(id="toggle-queue", title="Press 'q' to toggle queue.", data-toggle="tooltip", data-placement="left") Show queue
             &nbsp;
-            span(id="queue-length") 0
-            span(id="preload-status")
+            span(id="queue-length", title="Songs in queue.", data-toggle="tooltip", data-placement="left") 0
+            span(id="preload-status", title="Preload status for the next song.", data-toggle="tooltip", data-placement="left")
               span(class='notloaded') ✘
 
         div(class="row-fluid")
           div(class="span4")
-            label(class="info-label") Search:&nbsp;
-              input(type="text", id="search", title="Press 'j' to focus and 'return' to lose focus.")
+            label(class="info-label", title="Press 'j' to focus and 'return' to lose focus.", data-toggle="tooltip", data-placement="bottom") Search:&nbsp;
+              input(type="text", id="search")
 
           div(id="status-current", class="span8")
-            span(id="title")
+            span(id="title", title="Song title.", data-toggle="tooltip", data-placement="bottom")
             span(class="separator") &nbsp;/&nbsp;
-            span(id="album")
+            span(id="album", title="Album name.", data-toggle="tooltip", data-placement="bottom")
             span(class="separator") &nbsp;/&nbsp;
-            span(id="artist")
+            span(id="artist", title="Artist name.", data-toggle="tooltip", data-placement="bottom")
 
       div(id="initial-status", class="show-after-height-calculation")
         div Download progress...&nbsp;
