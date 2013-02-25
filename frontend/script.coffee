@@ -732,11 +732,13 @@ class Search
                 @worker.postMessage {type: "search", searchId: @searchId, value: string}
 
 
-HotkeysView = (player, queue, toggleQueueElement, searchField) ->
+HotkeysView = (player, queue, pauseElement, nextElement, toggleQueueElement, searchField) ->
         $(document).bind "keypress.b", ->
                 queue.next()
+                nextElement.focus()
         $(document).bind "keypress.x", ->
                 player.togglePause()
+                pauseElement.focus()
         $(document).bind "keypress.q", ->
                 toggleQueueElement.click()
         $(document).bind "keypress.j", ->
@@ -809,7 +811,7 @@ $(document).ready ->
                 $("#album").text currentSong.album
                 $("#artist").text currentSong.artist
 
-        HotkeysView playerInstance, songQueue, $("#toggle-queue"), $("#search")
+        HotkeysView playerInstance, songQueue, $("#play-control"), $("#next"), $("#toggle-queue"), $("#search")
 
         router = new PlayerRouter()
 
