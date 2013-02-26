@@ -159,6 +159,22 @@ exports.FileCache = class FileCache
                 input.on "end", =>
                         callback null, @_getLocation conversionParams
 
+createPreloadCallback = (response) ->
+        responseCallback = (headers, content, code) ->
+                if code == 302
+                        response.send content
+                        return
+                for header, value of headers
+                        response.set header, value
+                response.send content, code
+        return responseCallback
+
+createRedirectCallback = (response) ->
+        responseCallback = (headers, content, code) ->
+                for header, value of headers
+                        response.set header, value
+                response.send content, code
+        return responseCallback
 
 class FileConverter
         constructor: (@log, @cache)->
@@ -202,16 +218,14 @@ class FileConverter
                 @_createResponse err, cacheInstance, tempname, (responseParams) =>
                         @log.debug "Sending response to clients: #{tempname}."
                         for response in @_ongoingConversions[cacheInstance.getKey()]
-                                for header, value of responseParams.headers
-                                        response.set(header, value)
                                 [content, code] = responseParams.data
-                                response.send content, code
+                                response responseParams.headers, content, code
                         delete @_ongoingConversions[cacheInstance.getKey()]
 
-        convert: (type, filename, response) =>
+        convert: (type, filename, responseCallback) =>
                 @log.info "Starting conversion of '#{filename}' to type #{type}."
                 if type not of @converters
-                        response.send "I do not know how to convert to type #{type}.", 406
+                        responseCallback {}, "I do not know how to convert to type #{type}.", 406
                         return
                 converter = @converters[type]
                 suffix = converter.suffix()
@@ -226,23 +240,22 @@ class FileConverter
 
                 cacheInstance.getCached (err, location) =>
                         if not err
-                                response.set "location", location
-                                response.send "Go to #{location}", 302
+                                responseCallback {location: location}, "Go to #{location}", 302
                                 return
 
                         fs.stat filename, (statErr, stats) =>
                                 if statErr
-                                        response.send "Failed to read original file name.", 500
+                                        responseCallback {}, "Failed to read original file name.", 500
                                         return
 
                                 cacheKey = cacheInstance.getKey()
                                 if cacheKey of @_ongoingConversions
                                         @log.debug "Adding #{cacheKey} to ongoing encodings."
-                                        @_ongoingConversions[cacheKey].push response
+                                        @_ongoingConversions[cacheKey].push responseCallback
                                         return
                                 else
                                         @log.debug "Creating new ongoing encoding cache key #{cacheKey}."
-                                        @_ongoingConversions[cacheKey] = [response]
+                                        @_ongoingConversions[cacheKey] = [responseCallback]
 
                                 tempname = temp.path {suffix: ".#{suffix}"}
                                 converter.convert filename, @bitrate, tempname, (err) =>
@@ -253,11 +266,19 @@ exports.FileConverterView = class FileConverterView
         constructor: (@log, @fileDatabase, @cache, @defaultType="mp3") ->
                 @converter = new FileConverter @log, @cache
 
-        view: (request, response) =>
+        _convert: (request, responseCallback) =>
                 filename = request.params[0]
                 if not @fileDatabase.exists filename
                         response.send "Not found", 404
                         return
                 fullPath = @fileDatabase.getPath filename
                 targetType = request.query.type or @defaultType
-                @converter.convert targetType, fullPath, response
+                @converter.convert targetType, fullPath, responseCallback
+
+        preloadView: (request, response) =>
+                responseCallback = createPreloadCallback response
+                @_convert request, responseCallback
+
+        redirectView: (request, response) =>
+                responseCallback = createRedirectCallback response
+                @_convert request, responseCallback

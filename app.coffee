@@ -59,7 +59,8 @@ FileConverter = require './file-converter'
 cache = new FileConverter.FileCache cacheDir, cacheLocation
 converter = new FileConverter.FileConverterView logger, files, cache
 
-app.get urlPath('file/*'), converter.view
+app.get urlPath('file/*'), converter.redirectView
+app.get urlPath('preload/*'), converter.preloadView
 
 parser = new Playlist.Parser logger
 files.open parser, datafile, (err) ->
