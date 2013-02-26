@@ -1,6 +1,12 @@
+PRELOAD_COUNT = 20
+# Even though all songs can not be converted in 10 seconds, this at least
+# ensures that a long running song will not completely destroy the preload
+# performance.
+PRELOAD_WAIT_TIMEOUT = 10 * 1000
+
 RESIZE_UPDATE_DELAY = 500
 SEARCH_UPDATE_PRELOAD_DELAY = 2000
-CONVERSION_WAIT_TIMEOUT = 180 * 60 * 1000
+CONVERSION_WAIT_TIMEOUT = 180 * 1000
 
 MINIMUM_PROGRESS_FILES = 10000
 FILE_PROGRESS_UPDATE_INTERVAL = 2000
@@ -63,6 +69,49 @@ shuffledList = (list) ->
         return shuffled
 
 
+class Preloader
+        constructor: (@queue, @playbackType, @preloadCount) ->
+                @preloaded = {}
+                @nextPreloads = []
+                @ongoingPreloads = {}
+
+        _preloadSong: =>
+                if @nextPreloads.length == 0
+                        return
+                if _.keys(@ongoingPreloads).length != 0
+                        return
+                song = @nextPreloads.shift()
+                encodedPath = encodeURIComponent song.filename
+                preloadSource = "preload/#{encodedPath}?type=#{@playbackType.request}"
+                @ongoingPreloads[song.filename] = new Date()
+                request = $.ajax preloadSource,
+                        type: "GET"
+                        timeout: PRELOAD_WAIT_TIMEOUT
+                preloadCallback = =>
+                        @preloaded[song.filename] = new Date()
+                        delete @ongoingPreloads[song.filename]
+                        if @nextPreloads.length == 0
+                                return
+                        nextSong = @nextPreloads.shift()
+                        @_preloadSong nextSong
+                request.error preloadCallback
+                request.success preloadCallback
+
+        updatePreload: =>
+                allSongs = @queue.playbackQueue()
+                preloadSongs = allSongs[0..].reverse()
+                @nextPreloads = []
+                totalPreloads = 0
+                for song in preloadSongs
+                        if totalPreloads == @preloadCount
+                                break
+                        if song.filename in @preloaded
+                                continue
+                        totalPreloads++
+                        @nextPreloads.push song
+                @_preloadSong()
+
+
 class SongQueue
         constructor: (@storage) ->
                 _.extend @, Backbone.Events
@@ -86,6 +135,7 @@ class SongQueue
 
         updateAll: (@allSongs) =>
                 @trigger "updateAll", @allSongs
+                @trigger "queueChange"
 
         updateVisible: (newVisibleSongs) ->
                 if @visibleSongs == newVisibleSongs
@@ -94,6 +144,7 @@ class SongQueue
                 @playbackFiles = []
                 @_removeRandom()
                 @trigger "updateVisible", @visibleSongs
+                @trigger "queueChange"
 
         length: =>
                 return @fullQueue().length
@@ -103,6 +154,7 @@ class SongQueue
                 @clearNext()
                 if next != null
                         @trigger "next", next
+                        @trigger "queueChange"
                 return next
 
         clearNext: =>
@@ -144,6 +196,7 @@ class SongQueue
                 @storage.queue = JSON.stringify @fullQueue()
                 @_removeRandom()
                 @trigger "add", song
+                @trigger "queueChange"
                 return @queuedSongs.length
 
         remove: (index) =>
@@ -153,10 +206,14 @@ class SongQueue
                 @storage.queue = JSON.stringify queue
                 @queuedSongs = queue
                 @trigger "remove", removed, index
+                @trigger "queueChange"
                 return removed
 
         show: =>
                 return @queuedSongs
+
+        playbackQueue: =>
+                return @playbackFiles
 
 
 class PlaybackType
@@ -802,6 +859,8 @@ $(document).ready ->
         timeouter = new RetryTimeouter()
         playerInstance = new Player playerElement, preloadElement, localStorage, timeouter, playbackType
         songQueue = new SongQueue localStorage
+        preloader = new Preloader songQueue, playbackType, PRELOAD_COUNT
+        songQueue.on "queueChange", preloader.updatePreload
 
         PlayerView playerContainer, playerInstance, songQueue
 
