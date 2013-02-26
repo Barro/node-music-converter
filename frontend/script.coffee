@@ -99,7 +99,7 @@ class Preloader
 
         updatePreload: =>
                 allSongs = @queue.playbackQueue()
-                preloadSongs = allSongs[0..].reverse()
+                preloadSongs = [@queue.peek()].concat(allSongs[0..].reverse())
                 @nextPreloads = []
                 totalPreloads = 0
                 for song in preloadSongs
