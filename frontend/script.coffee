@@ -801,9 +801,11 @@ HotkeysView = (player, queue, pauseElement, nextElement, toggleQueueElement, sea
   $(document).bind "keypress.j", ->
     searchField.focus()
     return false
-  $(searchField).bind "keyup.return", ->
+  unfocusSearch = ->
     searchField.blur()
     return false
+  $(searchField).bind "keyup.return", unfocusSearch
+  $(searchField).bind "keyup.esc", unfocusSearch
 
   # TODO Might be a better idea to have a relative volume control instead
   # of absolute.
