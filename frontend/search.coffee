@@ -59,7 +59,7 @@ createSearchList = (keywords) ->
 
 
 createSearchIndex = (song) ->
-  index = song.filename.toLowerCase()
+  index = normalizeKey song.filename
   if song.album
     album = normalizeKey (song.album_normalized or song.album)
     index += " #{Identifier.ALBUM}:#{album}"
