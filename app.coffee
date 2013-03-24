@@ -1,3 +1,4 @@
+connectAssets = require "connect-assets"
 express = require "express"
 gzippo = require "gzippo"
 nodefs = require "node-fs"
@@ -17,6 +18,9 @@ argv = optimist
   .argv
 [datafile] = argv._
 
+assets = connectAssets {src: "frontend", buildDir: "build/frontend"}
+css.root = "/"
+js.root = "/"
 
 app = express()
 
@@ -40,9 +44,9 @@ app.configure =>
   app.set 'views',"#{__dirname}/views"
   app.set 'view engine', 'jade'
   app.use express.logger {stream: winstonStream}
-  app.use urlPath("frontend"), gzippo.staticGzip "#{__dirname}/build/frontend"
   app.use urlPath("external"), gzippo.staticGzip "#{__dirname}/external"
   app.use cacheLocation, gzippo.staticGzip cacheDir
+  app.use assets
 
 FileDatabase = require './file-database'
 

@@ -18,7 +18,7 @@ html.no-js(lang='en')
     link(rel='stylesheet', href='external/css/smoothness/jquery-ui-1.9.2.custom.css')
     link(rel='stylesheet', href='external/css/bootstrap.min.css')
     link(rel='stylesheet', href='external/css/bootstrap-responsive.min.css')
-    link(rel='stylesheet', href='frontend/style.css')
+    != css("style")
     script(src='external/js/modernizr.min.js')
   body
     div(id="content")
@@ -80,7 +80,7 @@ html.no-js(lang='en')
       table(id="queue", class="playlist")
       table(id="playlist", class="display playlist")
 
-      div(class="description") Source code: 
+      div(class="description") Source code:&nbsp;
         a(href="https://bitbucket.org/barro/node-music-converter/") https://bitbucket.org/barro/node-music-converter/
 
     script(src='//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js')
@@ -96,4 +96,4 @@ html.no-js(lang='en')
     // Session storage may use this information to start playback immediately.
     script(type='text/javascript')
       var PLAYLIST_CACHE_KEY = "#{cacheKey}";
-    script(src='frontend/script.js')
+    != js("script")

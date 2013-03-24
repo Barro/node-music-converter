@@ -18,7 +18,8 @@
     "winston": "0.6.x",
     "underscore.string": "2.3.x",
     "unorm": "1.0.x",
-    "gzippo": "0.2.x"
+    "gzippo": "0.2.x",
+    "connect-assets": "2.4.x"
   },
   "noAnalyze": true,
   "devDependencies": {
