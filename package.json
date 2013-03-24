@@ -6,15 +6,15 @@
   "description": "Node.js based music converter",
   "dependencies" : {
     "colors"   :  "*",
-    "coffee-script": "1.3.x",
-    "express": "3.0.x",
+    "coffee-script": "1.6.x",
+    "express": "3.1.x",
     "supervisor": "0.5.x",
     "optimist": "0.3.x",
     "lazy": "1.0.x",
-    "temp": "0.4.x",
-    "jade": "0.27.x",
+    "temp": "0.5.x",
+    "jade": "0.28.x",
     "node-fs": "0.1.x",
-    "stylus": "0.31.x",
+    "stylus": "0.32.x",
     "winston": "0.6.x",
     "underscore.string": "2.3.x",
     "unorm": "1.0.x",
@@ -30,6 +30,6 @@
      "url": "http://www.gnu.org/licenses/agpl-3.0.html"
   }],
   "engine": {
-    "node": ">=0.8"
+    "node": ">=0.10"
   }
 }

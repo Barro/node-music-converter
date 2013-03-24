@@ -10,7 +10,10 @@ FAILED_CONVERSION_IS_OK_SIZE = 60 * 160 * 1000 / 8
 FFMPEG = "ffmpeg"
 
 class AudioConverter
+  constructor: (@log) ->
+
   _conversionDone: (target, code, callback) =>
+    @log.debug "Converted with code #{code} to #{target}"
     if code != 0
       # We have failed file conversion. Let's check
       # if the resulting file is large enough so that
@@ -43,7 +46,11 @@ class OpusConverter extends AudioConverter
   convert: (source, bitrate, target, callback) =>
     options =
       cwd: "/tmp/"
-    ffmpeg = child_process.spawn FFMPEG, ["-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
+    args = ["-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
+    @log.debug "Starting Opus conversion: #{FFMPEG} #{args.join(' ')}"
+    ffmpeg = child_process.spawn FFMPEG, args, options
+    ffmpeg.on "error", =>
+      throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
       @_conversionDone target, code, callback
 
@@ -61,14 +68,23 @@ class VorbisConverter extends AudioConverter
   _audioGain: (target, callback) =>
     options =
       cwd: "/tmp/"
+    @log.debug "Starting Vorbis audio gain for #{target}"
     vorbisgain = child_process.spawn "vorbisgain", [target], options
+    vorbisgain.on "error", =>
+      @log.warn "Unable to execute vorbisgain for #{target}"
+      callback null
     vorbisgain.on 'exit', (code) =>
+      @log.debug "Audio gain for #{target}"
       callback null
 
   convert: (source, bitrate, target, callback) =>
     options =
       cwd: "/tmp/"
-    ffmpeg = child_process.spawn FFMPEG, ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target], options
+    args = ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
+    @log.debug "Starting Vorbis conversion: #{FFMPEG} #{args.join(' ')}"
+    ffmpeg = child_process.spawn FFMPEG, args, options
+    ffmpeg.on "error", =>
+      throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
       @_conversionDone target, code, callback
 
@@ -87,13 +103,20 @@ class Mp3Converter extends AudioConverter
     options =
       cwd: "/tmp/"
     mp3gain = child_process.spawn "mp3gain", [target], options
+    mp3gain.on "error", =>
+      @log.warn "Unable to execute mp3gain for #{target}"
+      callback null
     mp3gain.on 'exit', (code) =>
       callback null
 
   convert: (source, bitrate, target, callback) =>
     options =
       cwd: "/tmp/"
-    ffmpeg = child_process.spawn FFMPEG, ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target], options
+    args = ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target]
+    @log.debug "Starting MP3 conversion: #{FFMPEG} #{args.join(' ')}"
+    ffmpeg = child_process.spawn FFMPEG, args, options
+    ffmpeg.on "error", =>
+      throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
       @_conversionDone target, code, callback
 
@@ -180,8 +203,8 @@ class FileConverter
   constructor: (@log, @cache)->
     @bitrate = "160k"
     @converters =
-      mp3: new Mp3Converter()
-      ogg: new VorbisConverter()
+      mp3: new Mp3Converter @log
+      ogg: new VorbisConverter @log
     @_ongoingConversions = {}
 
   _redirectToCachefile: (cacheInstance, response) =>
@@ -240,6 +263,7 @@ class FileConverter
 
     cacheInstance.getCached (err, location) =>
       if not err
+        @log.debug "Found cached file of #{filename}"
         responseCallback {location: location}, "Go to #{location}", 302
         return
 
@@ -258,6 +282,7 @@ class FileConverter
           @_ongoingConversions[cacheKey] = [responseCallback]
 
         tempname = temp.path {suffix: ".#{suffix}"}
+        @log.debug "Created temporary target file path #{tempname}"
         converter.convert filename, @bitrate, tempname, (err) =>
           @_conversionDone err, cacheInstance, tempname
 

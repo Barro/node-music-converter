@@ -12,8 +12,11 @@ argv = optimist
   .describe("cache-directory", "Cache directory for temporary files.")
   .default("root-path", "/")
   .describe("root-path", "Server root that all requests go to.")
+  .usage("Usage: $0 [options] PLAYLIST")
+  .demand(1)
   .argv
 [datafile] = argv._
+
 
 app = express()
 
