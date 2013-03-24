@@ -113,7 +113,7 @@ exports.FileDatabaseView = class FileDatabaseView
 
         _processCacheData: (err, parser, filename, fileData, callback) =>
                 if not err
-                        @log.info "Loaded cached file."
+                        @log.info "Loaded cached file database for #{filename}"
                         @filenames = @_createFileMap fileData
                         callback null
                         return
