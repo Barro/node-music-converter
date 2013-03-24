@@ -6,7 +6,7 @@ FRONTEND_OBJECTS := $(addprefix build/,$(FRONTEND_SCRIPTS:.coffee=.js)) $(addpre
 all: $(FRONTEND_OBJECTS)
 
 build/%.js: %.coffee
-	node_modules/.bin/coffee -o $(shell dirname "$@") -c $^
+	node_modules/.bin/coffee --map -o $(shell dirname "$@") -c $^
 
 build/%.css: %.styl
 	node_modules/.bin/stylus --compress  -o $(shell dirname "$@") $^
