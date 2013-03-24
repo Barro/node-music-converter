@@ -97,3 +97,8 @@ html.no-js(lang='en')
     script(type='text/javascript')
       var PLAYLIST_CACHE_KEY = "#{cacheKey}";
     != js("script")
+    // This is needed by the search script web worker, but connect-asset
+    // prevents us from doing includes without this trick.
+    | <!--
+    != js("search")
+    | -->

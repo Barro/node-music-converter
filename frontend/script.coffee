@@ -739,7 +739,7 @@ class PlayerRouter extends Backbone.Router
 class Search
   constructor: (@storage) ->
     _.extend @, Backbone.Events
-    @worker = new Worker "frontend/search.js"
+    @worker = new Worker "/search.js"
     @worker.onmessage = (event) =>
       @_handle event.data
     @searchId = 0
