@@ -18,7 +18,7 @@ argv = optimist
   .argv
 [datafile] = argv._
 
-assets = connectAssets {src: "frontend", buildDir: "build/frontend"}
+assets = connectAssets {src: "#{__dirname}/frontend", buildDir: "#{__dirname}/build/frontend"}
 css.root = "/"
 js.root = "/"
 
