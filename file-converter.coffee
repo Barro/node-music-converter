@@ -2,12 +2,47 @@ child_process = require 'child_process'
 crypto = require 'crypto'
 fs = require 'fs'
 path = require 'path'
+_s = require "underscore.string"
 temp = require 'temp'
 
 # 1 minute of 160 kbps music.
 FAILED_CONVERSION_IS_OK_SIZE = 60 * 160 * 1000 / 8
 
 FFMPEG = "ffmpeg"
+XMP = "xmp"
+
+class ModPreprocessor
+  knownTypes: ["it", "xm", "mod", "s3m", "mtm"]
+
+  constructor: (@log) ->
+
+  canPreprocess: (source) =>
+    suffix = source.replace /.+\./, ""
+    suffix = suffix.toLowerCase()
+    if suffix in @knownTypes
+      return true
+    return false
+
+  preprocess: (source, callback) =>
+    resultFile = temp.path {suffix: ".wav"}
+    @log.debug "Started preprocessing #{source} to #{resultFile}."
+    options =
+      cwd: "/tmp/"
+    args = ["--nocmd", "-o", resultFile, source]
+    xmp = child_process.spawn XMP, args, options
+    @log.debug "Started xmp with #{XMP} #{_s.join ' ', args...}."
+    xmp.on "error", =>
+      throw new Error "No xmp executable '#{XMP}' in path!"
+    xmp.stdout.on 'data', (data) ->
+    xmp.stderr.on 'data', (data) ->
+    xmp.on 'exit', (code) =>
+      if code != 0
+        err = "Exited with non-0 status!"
+      else
+        err = null
+      @log.debug "Finished preprocessing #{source} to #{resultFile} with exit status #{code}."
+      callback err, resultFile
+
 
 class AudioConverter
   constructor: (@log) ->
@@ -49,6 +84,8 @@ class OpusConverter extends AudioConverter
     args = ["-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
     @log.debug "Starting Opus conversion: #{FFMPEG} #{args.join(' ')}"
     ffmpeg = child_process.spawn FFMPEG, args, options
+    ffmpeg.stdout.on 'data', (data) ->
+    ffmpeg.stderr.on 'data', (data) ->
     ffmpeg.on "error", =>
       throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
@@ -70,6 +107,8 @@ class VorbisConverter extends AudioConverter
       cwd: "/tmp/"
     @log.debug "Starting Vorbis audio gain for #{target}"
     vorbisgain = child_process.spawn "vorbisgain", [target], options
+    vorbisgain.stdout.on 'data', (data) ->
+    vorbisgain.stderr.on 'data', (data) ->
     vorbisgain.on "error", =>
       @log.warn "Unable to execute vorbisgain for #{target}"
       callback null
@@ -83,6 +122,8 @@ class VorbisConverter extends AudioConverter
     args = ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
     @log.debug "Starting Vorbis conversion: #{FFMPEG} #{args.join(' ')}"
     ffmpeg = child_process.spawn FFMPEG, args, options
+    ffmpeg.stdout.on 'data', (data) ->
+    ffmpeg.stderr.on 'data', (data) ->
     ffmpeg.on "error", =>
       throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
@@ -103,6 +144,8 @@ class Mp3Converter extends AudioConverter
     options =
       cwd: "/tmp/"
     mp3gain = child_process.spawn "mp3gain", [target], options
+    mp3gain.stdout.on 'data', (data) ->
+    mp3gain.stderr.on 'data', (data) ->
     mp3gain.on "error", =>
       @log.warn "Unable to execute mp3gain for #{target}"
       callback null
@@ -115,6 +158,8 @@ class Mp3Converter extends AudioConverter
     args = ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target]
     @log.debug "Starting MP3 conversion: #{FFMPEG} #{args.join(' ')}"
     ffmpeg = child_process.spawn FFMPEG, args, options
+    ffmpeg.stdout.on 'data', (data) ->
+    ffmpeg.stderr.on 'data', (data) ->
     ffmpeg.on "error", =>
       throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
@@ -202,6 +247,7 @@ createRedirectCallback = (response) ->
 class FileConverter
   constructor: (@log, @cache)->
     @bitrate = "160k"
+    @preprocessors = [new ModPreprocessor @log]
     @converters =
       mp3: new Mp3Converter @log
       ogg: new VorbisConverter @log
@@ -225,15 +271,12 @@ class FileConverter
       if statErr
         callback {data: ["Failed to read resulting file name.", 500], headers: {}}
         return
-      @log.debug "Creating read stream for: #{tempname}."
-      stream = fs.createReadStream tempname
-      stream.on "end", =>
-        @log.debug "Finished reading #{tempname}."
+      cacheInstance.createCache tempname, (err, location) =>
         fs.unlink tempname, (err) =>
           if err
-            @log.warn "Failed to unlink file #{tempname} on stream end: #{err}"
-
-      cacheInstance.createCache tempname, (err, location) ->
+            @log.warn "Failed to unlink file #{tempname}: #{err}"
+          else
+            @log.debug "Unlinked #{tempname}."
         callback {data: ["Go to #{location}", 302], headers: {"location": location}}
 
   _conversionDone: (err, cacheInstance, tempname) =>
@@ -252,7 +295,6 @@ class FileConverter
       return
     converter = @converters[type]
     suffix = converter.suffix()
-
     conversionParams =
       filename: filename
       type: type
@@ -283,8 +325,35 @@ class FileConverter
 
         tempname = temp.path {suffix: ".#{suffix}"}
         @log.debug "Created temporary target file path #{tempname}"
-        converter.convert filename, @bitrate, tempname, (err) =>
-          @_conversionDone err, cacheInstance, tempname
+        preprocessed = false
+        convertFile = (err, sourceName, delfile) =>
+          @log.debug "Conversion done for #{sourceName} with error '#{err}' and cleanup #{delfile}."
+          if err
+            if delfile
+              fs.unlink sourceName, (err) =>
+                if err
+                  @log.warn "Failed to delete source file #{sourceName}: #{err}"
+                else
+                  @log.debug "Unlinked #{sourceName}."
+            @_conversionDone err, cacheInstance, tempname
+            return
+          converter.convert sourceName, @bitrate, tempname, (err) =>
+            if delfile
+              fs.unlink sourceName, (err) =>
+                if err
+                  @log.warn "Failed to delete source file #{sourceName}: #{err}"
+                else
+                  @log.debug "Unlinked #{sourceName}."
+            @_conversionDone err, cacheInstance, tempname
+
+        for preprocessor in @preprocessors
+          if preprocessor.canPreprocess filename
+            preprocessor.preprocess filename, (err, sourceName) =>
+              convertFile err, sourceName, true
+            preprocessed = true
+            break
+        if not preprocessed
+          convertFile null, filename, false
 
 
 exports.FileConverterView = class FileConverterView

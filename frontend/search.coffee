@@ -58,16 +58,17 @@ createSearchList = (keywords) ->
   return keywordsUnique
 
 
-createSearchIndex = (song) ->
-  index = normalizeKey song.filename
+createSearchIndex = (directories, song) ->
+  [directory, filename] = song.filename.split "/"
+  index = normalizeKey "#{directories[parseInt directory]}/#{filename}"
   if song.album
-    album = normalizeKey (song.album_normalized or song.album)
+    album = normalizeKey song.album
     index += " #{Identifier.ALBUM}:#{album}"
   if song.title
-    title = normalizeKey (song.title_normalized or song.title)
+    title = normalizeKey song.title
     index += "-#{Identifier.TITLE}:#{title}"
   if song.artist
-    artist = normalizeKey (song.artist_normalized or song.artist)
+    artist = normalizeKey song.artist
     index += "-#{Identifier.ARTIST}:#{artist}-"
   return index
 
@@ -81,10 +82,17 @@ class SearchCache
     fullList = [0...@searchDatabase.length]
     @searchCache[""] = fullList
 
-  initialize: (songs) =>
+  initialize: (directories, songs) =>
+    for index in [1..(directories.length - 1)]
+      [parentStr, basename] = directories[index].split "/"
+      if parentStr == ""
+        continue
+      parent = parseInt parentStr
+      directories[index] = "#{directories[parent]}/#{basename}"
+
     @searchDatabase = []
     for song in songs
-      @searchDatabase.push createSearchIndex song
+      @searchDatabase.push createSearchIndex directories, song
     @setDatabase @searchDatabase
     return @searchDatabase
 
@@ -151,7 +159,7 @@ self.onmessage = (event) ->
       matches: result
     self.postMessage message
   else if data.type == "initialize"
-    SEARCH_CACHE.initialize data.songs
+    SEARCH_CACHE.initialize data.directories, data.songs
     message =
       type: "initialize"
     self.postMessage message

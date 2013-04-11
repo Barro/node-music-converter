@@ -81,15 +81,15 @@ class Preloader
     if _.keys(@ongoingPreloads).length != 0
       return
     song = @nextPreloads.shift()
-    encodedPath = encodeURIComponent song.filename
+    encodedPath = encodeURIComponent song.filename()
     preloadSource = "preload/#{encodedPath}?type=#{@playbackType.request}"
-    @ongoingPreloads[song.filename] = new Date()
+    @ongoingPreloads[song.filename()] = new Date()
     request = $.ajax preloadSource,
       type: "GET"
       timeout: PRELOAD_WAIT_TIMEOUT
     preloadCallback = =>
-      @preloaded[song.filename] = new Date()
-      delete @ongoingPreloads[song.filename]
+      @preloaded[song.filename()] = new Date()
+      delete @ongoingPreloads[song.filename()]
       if @nextPreloads.length == 0
         return
       nextSong = @nextPreloads.shift()
@@ -105,7 +105,7 @@ class Preloader
     for song in preloadSongs
       if totalPreloads == @preloadCount
         break
-      if song.filename in @preloaded
+      if song.filename() in @preloaded
         continue
       totalPreloads++
       @nextPreloads.push song
@@ -235,7 +235,7 @@ class Player
     @startedPlaying = false
     if @storage.currentSong
       try
-        @currentSong = JSON.parse @storage.currentSong
+        @currentSong = jsonToSong @storage.currentSong
         @lastPosition = parseInt @storage.continuePosition
         @resumePlaying()
       catch error
@@ -282,7 +282,7 @@ class Player
 
   play: (song) =>
     @playerElement.empty()
-    encodedPath = encodeURIComponent song.filename
+    encodedPath = encodeURIComponent song.filename()
     songSource = "file/#{encodedPath}?type=#{@playbackType.request}"
     @playerElement.append "<source src=\"#{songSource}\" type='#{@playbackType.mime}' />"
     @player.load()
@@ -301,16 +301,16 @@ class Player
     if not song
       return
     # console.log "player#preload #{song.title} #{react}"
-    if song.filename of @preloads
+    if song.filename() of @preloads
       # console.log "player#preload #{song.title} return"
       return
-    @preloads[song.filename] = new Date()
-    encodedPath = encodeURIComponent song.filename
+    @preloads[song.filename()] = new Date()
+    encodedPath = encodeURIComponent song.filename()
     songPath = "file/#{encodedPath}?type=#{@playbackType.request}"
     @trigger "preloadStart", song, react
 
     successCallback = (song) =>
-      delete @preloads[song.filename]
+      delete @preloads[song.filename()]
       @timeouter.reset()
 
       @preloadElement.empty()
@@ -326,7 +326,7 @@ class Player
     failCallback = (song) =>
       @trigger "preloadFailed", song, react
     errorCallback = (song) =>
-      delete @preloads[song.filename]
+      delete @preloads[song.filename()]
       setTimeout (=> failCallback song), @timeouter.increaseTimeout()
     request.error (xhr, textStatus, errorThrown) =>
       # 302 redirect in Opera
@@ -421,7 +421,7 @@ PlayerView = (playerElement, player, songQueue) ->
       return
     lastPreloadSong = song
     newsong = $("<span class='notloaded'>✘</span>")
-    newsong.attr "title", "#{song.title} / #{song.album} / #{song.artist} / #{song.filename}"
+    newsong.attr "title", "#{song.title} / #{song.album} / #{song.artist} / #{song.filename()}"
     nextSongStatusElement.html newsong
 
   player.on "preloadFailed", (song, react) ->
@@ -492,7 +492,7 @@ PlayerView = (playerElement, player, songQueue) ->
   albumElement = $("#album", currentSongStatusElement)
   titleElement = $("#title", currentSongStatusElement)
   player.on "preparePlay", (song) ->
-    currentSongStatusElement.attr "title", song.filename
+    currentSongStatusElement.attr "title", song.filename()
     artistElement.text song.artist
     albumElement.text song.album
     titleElement.text song.title
@@ -624,8 +624,10 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
     aoColumns: columns
 
   table.on "filter", (event, settings) =>
-    queue.updateVisible $.map settings.aiDisplay, (value, index) =>
-      return [ songData[value] ]
+    visible = []
+    for songIndex in settings.aiDisplay
+      visible.push songData[songIndex]
+    queue.updateVisible visible
 
   lastHashChange = null
 
@@ -637,7 +639,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
 
     # Front page for the first time:
     if not player.startedPlaying
-      if player.currentSong and (not songName? or player.currentSong.filename == songName)
+      if player.currentSong and (not songName? or player.currentSong.filename() == songName)
         # console.log "resume playing"
         player.resumePlaying()
       else
@@ -648,7 +650,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
     # Hash change while player has already started playing
     # something.
     if player.startedPlaying
-      if songName == player.currentSong.filename
+      if songName == player.currentSong.filename()
         # console.log "current song"
         return
 
@@ -656,7 +658,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
     # change.
     $(songData).each (index, element) =>
       song = songData[index]
-      if song.filename == songName
+      if song.filename() == songName
         # console.log "playing"
         player.play song
         queue.clearNext()
@@ -676,8 +678,8 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
   lastSong = null
 
   player.on "preparePlay", (song) ->
-    if lastHashChange != song.filename
-      router.navigate "/" + song.filename
+    if lastHashChange != song.filename()
+      router.navigate "/" + song.filename()
 
   previousRow = null
   focusRow = (song) ->
@@ -764,7 +766,10 @@ class Search
     if @searchId of @searchCallbacks
       callback = @searchCallbacks[@searchId]
       @searchCallbacks[@searchId] = (matches) =>
-        callback matches
+        try
+          callback matches
+        catch e
+          console.log e
         @trigger "initialize"
     else
       @trigger "initialize"
@@ -778,8 +783,12 @@ class Search
       callback matches
       @trigger "result", result
 
-  initialize: (songs) =>
-    @worker.postMessage {type: "initialize", songs: songs}
+  initialize: (directories, songs) =>
+    message =
+      type: "initialize"
+      directories: directories
+      songs: songs
+    @worker.postMessage message
 
   search: (string, callback) =>
     @searchId++
@@ -817,6 +826,71 @@ HotkeysView = (player, queue, pauseElement, nextElement, toggleQueueElement, sea
     currentVolume = Math.round VOLUME_STEPS * player.getVolume()
     newVolume = Math.max(0, currentVolume - 1)
     player.setVolume newVolume / VOLUME_STEPS
+
+
+class SongSearch
+  constructor: (fileObject) ->
+    if fileObject.filename_normalized
+      [directory, basename] = fileObject.filename.split("/")
+      @filename = "#{directory}/#{fileObject.filename_normalized}"
+    else
+      @filename = fileObject.filename
+    @title = fileObject.title_normalized or fileObject.title
+    @album = fileObject.album_normalized or fileObject.album
+    @artist = fileObject.artist_normalized or fileObject.artist
+
+
+get_directory = (directories, filename) ->
+  directoryName = ""
+  if filename.indexOf("/") != -1
+    [parentStr, basefile] = filename.split "/"
+    parent = parseInt parentStr
+    basename = directoryName
+    while parent != 0
+      [parentStr, basename] = directories[parent].split "/"
+      if parentStr == ""
+        parent = 0
+      else
+        parent = parseInt parentStr
+      directoryName = "#{basename}/#{directoryName}"
+  return "/#{directoryName}"
+
+
+class SongDisplay
+  constructor: (@_directories, fileObject) ->
+    @index = fileObject.index
+    @_filename = fileObject.filename
+    @title = fileObject.title
+    @album = fileObject.album
+    @artist = fileObject.artist
+
+  filename: =>
+    directoryName = get_directory @_directories, @_filename
+    [directory, basename] = @_filename.split "/"
+    if not basename
+      basename = @_filename
+    return "#{directoryName}#{basename}"
+
+  toJSON: =>
+    directoryName = ""
+    basename = @_filename
+    if @_filename.indexOf("/") != -1
+      [directory, basename] = @_filename.split "/"
+    directoryName = get_directory @_directories, @_filename
+    data =
+      index: 0
+      _directories: [directoryName]
+      _filename: "0/#{basename}"
+      title: @title
+      album: @album
+      artist: @artist
+    return data
+
+jsonToSong = (json_data) ->
+  song = new SongDisplay [], {}
+  for key, value in JSON.parse json_data
+    song[key] = value
+  return song
 
 class Viewport
   constructor: (@document) ->
@@ -867,7 +941,7 @@ $(document).ready ->
   PlayerView playerContainer, playerInstance, songQueue
 
   if localStorage.currentSong
-    currentSong = JSON.parse localStorage.currentSong
+    currentSong = jsonToSong localStorage.currentSong
     $("#title").text currentSong.title
     $("#album").text currentSong.album
     $("#artist").text currentSong.artist
@@ -892,11 +966,14 @@ $(document).ready ->
 
   dataParser = (data, callback) ->
     start = (new Date()).getTime()
-    directories = data.directories
-    for index in [1..(directories.length - 1)]
-      directory = directories[index]
-      [parent, name, normalizedName] = directory.split "/"
-      directories[index] = "#{directories[parseInt(parent)]}/#{name}"
+    directoriesDisplay = [""]
+    directoriesSearch = [""]
+    for directory in data.directories[1..(data.directories.length)]
+      [parentStr, name, normalizedName] = directory.split "/"
+      if not normalizedName
+        normalizedName = name
+      directoriesDisplay.push "#{parentStr}/#{name}"
+      directoriesSearch.push "#{parentStr}/#{normalizedName}"
 
     progressCallback = ->
     fileId = 0
@@ -905,18 +982,17 @@ $(document).ready ->
       $(progressElement).parent().show()
       progressCallback = ->
         progressElement.val (100 * fileId / data.files.length).toFixed(0)
-    files = []
+    filesDisplay = []
+    filesSearch = []
     for fileinfo, index in data.files
       fileId++
       if fileId % FILE_PROGRESS_UPDATE_INTERVAL == 0
         progressCallback()
+
       fileObject = {}
       for field, index in data.fields
         if index < fileinfo.length
           fileObject[field] = fileinfo[index]
-      if fileObject.filename.indexOf("/") != -1
-        [directory, basename] = fileObject.filename.split "/"
-        fileObject.filename = "#{directories[parseInt(directory)]}/#{basename}"
 
       # This guess is often wrong as not everything is
       # organized like this, but this is usually better
@@ -927,22 +1003,23 @@ $(document).ready ->
         fileObject.artist = fileObject.artist or artistPart
         fileObject.album = fileObject.album or albumPart
         fileObject.title = fileObject.title or titlePart
+      fileObject.index = index
 
-      fileObject.index = files.length
-      files.push fileObject
+      filesDisplay.push new SongDisplay directoriesDisplay, fileObject
+      filesSearch.push new SongSearch fileObject
 
     progressCallback()
-    createPlayerElements files
+    createPlayerElements filesDisplay, directoriesSearch, filesSearch
 
-  createPlayerElements = (files) ->
+  createPlayerElements = (filesDisplay, directoriesSearch, filesSearch) ->
     search = new Search localStorage
-    search.initialize files
+    search.initialize directoriesSearch, filesSearch
 
-    songQueue.updateAll files
+    songQueue.updateAll filesDisplay
 
     $("#initial-status").append $("<div>Creating playlist...</div>")
 
-    PlaylistView playlist, files, playerInstance, songQueue, router, search, viewport
+    PlaylistView playlist, filesDisplay, playerInstance, songQueue, router, search, viewport
 
     $("#initial-status").remove()
 
