@@ -739,9 +739,8 @@ class PlayerRouter extends Backbone.Router
 
 
 class Search
-  constructor: (@storage) ->
+  constructor: (@worker, @storage) ->
     _.extend @, Backbone.Events
-    @worker = new Worker "/search.js"
     @worker.onmessage = (event) =>
       @_handle event.data
     @searchId = 0
@@ -916,6 +915,8 @@ class Viewport
 
 START_LOAD = (new Date()).getTime()
 
+SEARCH_WORKER = new Worker "/search.js"
+
 $(document).ready ->
   $('[data-toggle=tooltip]').tooltip({delay: { show: 400, hide: 100 }})
 
@@ -963,6 +964,8 @@ $(document).ready ->
   $("<style type='text/css'>.album, .artist, .title { max-width: #{columnWidth}; }</style>").appendTo("head");
 
   $("#initial-status").show()
+
+  search = new Search SEARCH_WORKER, localStorage
 
   dataParser = (data, callback) ->
     start = (new Date()).getTime()
@@ -1012,7 +1015,6 @@ $(document).ready ->
     createPlayerElements filesDisplay, directoriesSearch, filesSearch
 
   createPlayerElements = (filesDisplay, directoriesSearch, filesSearch) ->
-    search = new Search localStorage
     search.initialize directoriesSearch, filesSearch
 
     songQueue.updateAll filesDisplay
