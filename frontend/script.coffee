@@ -583,7 +583,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
     else
       queueButton.text "Show queue"
 
-  $("tr", queueElement).live "click", ->
+  $(queueElement).on "click", "tr", ->
     iPos = table.fnGetPosition @
     song = queue.remove iPos
     player.play song
@@ -689,7 +689,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
   if player.currentSong
     focusRow player.currentSong
 
-  $('tr', playlistElement).live "click", ->
+  $(playlistElement).on "click", "tr", ->
     aData = table.fnGetData @
     [index, data...] = aData
     queue.add songData[index]
