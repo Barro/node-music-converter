@@ -777,11 +777,10 @@ class Search
       callback matches
       @trigger "result", result
 
-  initialize: (directories, songs) =>
+  initialize: (data) =>
     message =
       type: "initialize"
-      directories: directories
-      songs: songs
+      data: data
     @worker.postMessage message
 
   search: (string, callback) =>
@@ -983,15 +982,14 @@ $(document).ready ->
   search = new Search SEARCH_WORKER, localStorage
 
   dataParser = (data, callback) ->
+    search.initialize data
     start = (new Date()).getTime()
     directoriesDisplay = [""]
-    directoriesSearch = [""]
-    for directory in data.directories[1..(data.directories.length)]
+    for directory in data.directories[1...data.directories.length]
       [parentStr, name, normalizedName] = directory.split "/"
       if not normalizedName
         normalizedName = name
       directoriesDisplay.push "#{parentStr}/#{name}"
-      directoriesSearch.push "#{parentStr}/#{normalizedName}"
 
     progressCallback = ->
     fileId = 0
@@ -1001,7 +999,6 @@ $(document).ready ->
       progressCallback = ->
         progressElement.val (100 * fileId / data.files.length).toFixed(0)
     filesDisplay = []
-    filesSearch = []
     for fileinfo, index in data.files
       fileId++
       if fileId % FILE_PROGRESS_UPDATE_INTERVAL == 0
@@ -1024,14 +1021,11 @@ $(document).ready ->
       fileObject.index = index
 
       filesDisplay.push new SongDisplay directoriesDisplay, fileObject
-      filesSearch.push new SongSearch fileObject
 
     progressCallback()
-    createPlayerElements filesDisplay, directoriesSearch, filesSearch
+    createPlayerElements filesDisplay
 
-  createPlayerElements = (filesDisplay, directoriesSearch, filesSearch) ->
-    search.initialize directoriesSearch, filesSearch
-
+  createPlayerElements = (filesDisplay) ->
     songQueue.updateAll filesDisplay
 
     $("#initial-status").append $("<div>Creating playlist...</div>")

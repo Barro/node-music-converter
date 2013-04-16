@@ -58,18 +58,24 @@ createSearchList = (keywords) ->
   return keywordsUnique
 
 
-createSearchIndex = (directories, song) ->
-  [directory, filename] = song.filename.split "/"
-  index = normalizeKey "#{directories[parseInt directory]}/#{filename}"
-  if song.album
-    album = normalizeKey song.album
-    index += " #{Identifier.ALBUM}:#{album}"
-  if song.title
-    title = normalizeKey song.title
-    index += "-#{Identifier.TITLE}:#{title}"
-  if song.artist
-    artist = normalizeKey song.artist
-    index += "-#{Identifier.ARTIST}:#{artist}-"
+createSearchIndex = (directories, fileData, fields) ->
+  [directory_str, filename_raw] = fileData[fields.filename].split "/"
+  filename = fileData[fields.filename_normalized] or filename_raw
+  directory = normalizeKey directories[parseInt directory_str]
+  index = "#{directory}/#{normalizeKey filename}"
+
+  title = fileData[fields.title_normalized] or fileData[fields.title]
+  if title
+    index += " #{Identifier.TITLE}:#{normalizeKey title}"
+
+  album = fileData[fields.album_normalized] or fileData[fields.album]
+  if album
+    index += " #{Identifier.ALBUM}:#{normalizeKey album}"
+
+  artist = fileData[fields.artist_normalized] or fileData[fields.artist]
+  if artist
+    index += " #{Identifier.ARTIST}:#{normalizeKey artist}-"
+
   return index
 
 
@@ -82,17 +88,26 @@ class SearchCache
     fullList = [0...@searchDatabase.length]
     @searchCache[""] = fullList
 
-  initialize: (directories, songs) =>
-    for index in [1..(directories.length - 1)]
-      [parentStr, basename] = directories[index].split "/"
+  initialize: (data) =>
+    directories = data.directories
+
+    for directory, index in directories
+      [parentStr, name, normalizedName] = directory.split "/"
+      if not normalizedName
+        normalizedName = name
       if parentStr == ""
         continue
       parent = parseInt parentStr
-      directories[index] = "#{directories[parent]}/#{basename}"
+      directories[index] = "#{directories[parent]}/#{normalizedName}"
 
     @searchDatabase = []
-    for song in songs
-      @searchDatabase.push createSearchIndex directories, song
+
+    fields = {}
+    for fieldName, fieldIndex in data.fields
+      fields[fieldName] = fieldIndex
+
+    for file, index in data.files
+      @searchDatabase.push createSearchIndex directories, file, fields
     @setDatabase @searchDatabase
     return @searchDatabase
 
@@ -159,7 +174,7 @@ self.onmessage = (event) ->
       matches: result
     self.postMessage message
   else if data.type == "initialize"
-    SEARCH_CACHE.initialize data.directories, data.songs
+    SEARCH_CACHE.initialize data.data
     message =
       type: "initialize"
     self.postMessage message
