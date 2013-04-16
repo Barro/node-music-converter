@@ -16,16 +16,23 @@ IdentifierStr =
   TITLE: " #{Identifier.TITLE}:"
   ARTIST: " #{Identifier.ARTIST}:"
 
+IdentifierStrRaw =
+  ALBUM: "#{Identifier.ALBUM}:"
+  TITLE: "#{Identifier.TITLE}:"
+  ARTIST: "#{Identifier.ARTIST}:"
+
 normalizeKey = (value) ->
   normalized = value
-  normalized = normalized.replace /\s+/g, '-'
-  normalized = normalized.replace /-+/g, '-'
+  normalized = normalized.replace /[\s\-]+/g, '-'
 
   normalized = normalized.toLowerCase()
 
-  normalized = normalized.replace "album:", "#{Identifier.ALBUM}:"
-  normalized = normalized.replace "title:", "#{Identifier.TITLE}:"
-  normalized = normalized.replace "artist:", "#{Identifier.ARTIST}:"
+  if normalized.indexOf("title:") != -1
+    normalized = normalized.replace "title:", IdentifierStrRaw.TITLE
+  if normalized.indexOf("album:") != -1
+    normalized = normalized.replace "album:", IdentifierStrRaw.ALBUM
+  if normalized.indexOf("artist:") != -1
+    normalized = normalized.replace "artist:", IdentifierStrRaw.ARTIST
 
   return normalized
 
