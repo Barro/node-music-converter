@@ -11,6 +11,11 @@ Identifier =
   TITLE: "t"
   ARTIST: "r"
 
+IdentifierStr =
+  ALBUM: " #{Identifier.ALBUM}:"
+  TITLE: " #{Identifier.TITLE}:"
+  ARTIST: " #{Identifier.ARTIST}:"
+
 normalizeKey = (value) ->
   normalized = value
   normalized = normalized.replace /\s+/g, '-'
@@ -62,21 +67,24 @@ createSearchIndex = (directories, fileData, fields) ->
   [directory_str, filename_raw] = fileData[fields.filename].split "/"
   filename = fileData[fields.filename_normalized] or filename_raw
   directory = normalizeKey directories[parseInt directory_str]
-  index = "#{directory}/#{normalizeKey filename}"
+  index = [directory, "/", normalizeKey filename]
 
   title = fileData[fields.title_normalized] or fileData[fields.title]
   if title
-    index += " #{Identifier.TITLE}:#{normalizeKey title}"
+    index.push IdentifierStr.TITLE
+    index.push normalizeKey title
 
   album = fileData[fields.album_normalized] or fileData[fields.album]
   if album
-    index += " #{Identifier.ALBUM}:#{normalizeKey album}"
+    index.push IdentifierStr.ALBUM
+    index.push normalizeKey album
 
   artist = fileData[fields.artist_normalized] or fileData[fields.artist]
   if artist
-    index += " #{Identifier.ARTIST}:#{normalizeKey artist}-"
+    index.push IdentifierStr.ARTIST
+    index.push normalizeKey artist
 
-  return index
+  return index.join ""
 
 
 class SearchCache
@@ -98,7 +106,7 @@ class SearchCache
       if parentStr == ""
         continue
       parent = parseInt parentStr
-      directories[index] = "#{directories[parent]}/#{normalizedName}"
+      directories[index] = [directories[parent], normalizedName].join "/"
 
     @searchDatabase = []
 

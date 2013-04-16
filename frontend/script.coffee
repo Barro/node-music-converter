@@ -989,7 +989,7 @@ $(document).ready ->
       [parentStr, name, normalizedName] = directory.split "/"
       if not normalizedName
         normalizedName = name
-      directoriesDisplay.push "#{parentStr}/#{name}"
+      directoriesDisplay.push [parentStr, name].join "/"
 
     progressCallback = ->
     fileId = 0
