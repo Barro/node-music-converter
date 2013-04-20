@@ -850,16 +850,29 @@ get_directory = (directories, filename) ->
 
 UNKNOWN_STRING = "UNKNOWN"
 
-class SongDisplay
-  constructor: (@directories, fileObject) ->
-    # This data can be shared with datatables.
-    @data = [
-      fileObject.index,
-      fileObject.title or UNKNOWN_STRING,
-      fileObject.album or UNKNOWN_STRING,
-      fileObject.artist or UNKNOWN_STRING]
-    @filename = fileObject.filename
 
+class SongDisplay
+  # @data can be shared with datatables.
+  constructor: (@directories, @filename, @data) ->
+
+
+createSong = (fields, index, directories, fileinfo) ->
+
+  # This guess is often wrong as not everything is
+  # organized like this, but this is usually better
+  # than showing nothing.
+  filename = fileinfo[fields['filename']]
+  title = fileinfo[fields['title']]
+  album = fileinfo[fields['album']]
+  artist = fileinfo[fields['artist']]
+  if not (title and album and artist)
+    filenameParts = filename.split "/"
+    [artistPart, albumPart, titlePart] = filenameParts[(filenameParts.length - 3)..(filenameParts.length - 1)]
+  data = [index,
+    artist or artistPart or UNKNOWN_STRING,
+    album or albumPart or UNKNOWN_STRING,
+    title or titlePart or UNKNOWN_STRING]
+  return new SongDisplay directories, filename, data
 
 songIndex = (song) ->
   return song.data[0]
@@ -886,7 +899,7 @@ songFilename = (song) ->
 
 
 jsonToSong = (json_data) ->
-  song = new SongDisplay [], {}
+  song = new SongDisplay [], "", {}
   for key, value in JSON.parse json_data
     song[key] = value
   return song
@@ -999,28 +1012,17 @@ $(document).ready ->
       progressCallback = ->
         progressElement.val (100 * fileId / data.files.length).toFixed(0)
     filesDisplay = []
+
+    fields = {}
+    for fieldKey, index in data.fields
+      fields[fieldKey] = index
+
     for fileinfo, index in data.files
       fileId++
       if fileId % FILE_PROGRESS_UPDATE_INTERVAL == 0
         progressCallback()
 
-      fileObject = {}
-      for field, index in data.fields
-        if index < fileinfo.length
-          fileObject[field] = fileinfo[index]
-
-      # This guess is often wrong as not everything is
-      # organized like this, but this is usually better
-      # than showing nothing.
-      if not fileObject.artist or not fileObject.album or not fileObject.title
-        filenameParts = fileObject.filename.split "/"
-        [artistPart, albumPart, titlePart] = filenameParts[(filenameParts.length - 3)..(filenameParts.length - 1)]
-        fileObject.artist = fileObject.artist or artistPart
-        fileObject.album = fileObject.album or albumPart
-        fileObject.title = fileObject.title or titlePart
-      fileObject.index = index
-
-      filesDisplay.push new SongDisplay directoriesDisplay, fileObject
+      filesDisplay.push createSong fields, index, directoriesDisplay, fileinfo
 
     progressCallback()
     createPlayerElements filesDisplay
