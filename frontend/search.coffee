@@ -72,7 +72,7 @@ createSearchList = (keywords) ->
 
 createSearchIndex = (directories, fileData, fields) ->
   filename = fileData[fields.filename_normalized] or fileData[fields.filename]
-  directory = normalizeKey directories[fileData[fields.directory]]
+  directory = directories[fileData[fields.directory]]
   index = [directory, "/", normalizeKey filename]
 
   title = fileData[fields.title_normalized] or fileData[fields.title]
@@ -113,6 +113,9 @@ class SearchCache
         continue
       parent = parseInt parentStr
       directories[index] = [directories[parent], normalizedName].join "/"
+
+    for directory, index in directories
+      directories[index] = normalizeKey directory
 
     @searchDatabase = []
 
