@@ -20,6 +20,13 @@ VOLUME_STEPS = 100
 
 PLAYLIST_BASIC_COLUMNS.push
   bSearchable: false
+  bVisible: false
+  sTitle: "Index"
+  bSortable: false
+  sWidth: "1px"
+
+PLAYLIST_BASIC_COLUMNS.push
+  bSearchable: false
   sTitle: "Title"
   bSortable: false
   sClass: "title"
@@ -70,7 +77,7 @@ shuffledList = (list) ->
 
 
 class Preloader
-  constructor: (@queue, @playbackType, @preloadCount) ->
+  constructor: (@songInfo, @queue, @playbackType, @preloadCount) ->
     @preloaded = {}
     @nextPreloads = []
     @ongoingPreloads = {}
@@ -81,15 +88,15 @@ class Preloader
     if _.keys(@ongoingPreloads).length != 0
       return
     song = @nextPreloads.shift()
-    encodedPath = encodeURIComponent songFilename song
+    encodedPath = encodeURIComponent @songInfo.filename song
     preloadSource = "preload/#{encodedPath}?type=#{@playbackType.request}"
-    @ongoingPreloads[songFilename song] = new Date()
+    @ongoingPreloads[@songInfo.filename song] = new Date()
     request = $.ajax preloadSource,
       type: "GET"
       timeout: PRELOAD_WAIT_TIMEOUT
     preloadCallback = =>
-      @preloaded[songFilename song] = new Date()
-      delete @ongoingPreloads[songFilename song]
+      @preloaded[@songInfo.filename song] = new Date()
+      delete @ongoingPreloads[@songInfo.filename song]
       if @nextPreloads.length == 0
         return
       nextSong = @nextPreloads.shift()
@@ -105,7 +112,7 @@ class Preloader
     for song in preloadSongs
       if totalPreloads == @preloadCount
         break
-      if songFilename(song) in @preloaded
+      if @songInfo.filename(song) in @preloaded
         continue
       totalPreloads++
       @nextPreloads.push song
@@ -160,13 +167,13 @@ class SongQueue
   clearNext: =>
     @nextSong = null
     @nextLength = 0
-    @storage.queue = JSON.stringify @fullQueue()
+    #@storage.queue = JSON.stringify @fullQueue()
 
   peek: =>
     if @nextSong != null
       return @nextSong
     if @queuedSongs.length > 0
-      @storage.queue = JSON.stringify @fullQueue()
+      #@storage.queue = JSON.stringify @fullQueue()
       song = @queuedSongs.shift()
       @nextSong = song
       @nextLength = 1
@@ -193,7 +200,7 @@ class SongQueue
 
   add: (song) =>
     @queuedSongs.push song
-    @storage.queue = JSON.stringify @fullQueue()
+    #@storage.queue = JSON.stringify @fullQueue()
     @_removeRandom()
     @trigger "add", song
     @trigger "queueChange"
@@ -203,7 +210,7 @@ class SongQueue
     queue = @fullQueue()
     @clearNext()
     [removed] = queue.splice(index, 1)
-    @storage.queue = JSON.stringify queue
+    #@storage.queue = JSON.stringify queue
     @queuedSongs = queue
     @trigger "remove", removed, index
     @trigger "queueChange"
@@ -221,7 +228,7 @@ class PlaybackType
 
 
 class Player
-  constructor: (@playerElement, @preloadElement, @storage, @timeouter, @playbackType) ->
+  constructor: (@songInfo, @playerElement, @preloadElement, @storage, @timeouter, @playbackType) ->
     _.extend @, Backbone.Events
     @lastSource = null
 
@@ -282,14 +289,14 @@ class Player
 
   play: (song) =>
     @playerElement.empty()
-    encodedPath = encodeURIComponent songFilename song
+    encodedPath = encodeURIComponent @songInfo.filename song
     songSource = "file/#{encodedPath}?type=#{@playbackType.request}"
     @playerElement.append "<source src=\"#{songSource}\" type='#{@playbackType.mime}' />"
     @player.load()
     @lastSource = songSource
     # console.log "last source: #{@lastSource}"
     @currentSong = song
-    @storage.currentSong = JSON.stringify songToJson @currentSong
+    #@storage.currentSong = JSON.stringify songToJson @songInfo, @currentSong
     # Preload the currently playing song to handle cases where we
     # fail to play the requested song. As audio element does not
     # send any events on failed playback, we need to use another
@@ -300,15 +307,16 @@ class Player
   preload: (song, react=true) =>
     if not song
       return
-    if songFilename(song) of @preloads
+    songFilename = @songInfo.filename(song)
+    if songFilename of @preloads
       return
-    @preloads[songFilename song] = new Date()
-    encodedPath = encodeURIComponent songFilename song
+    @preloads[songFilename] = new Date()
+    encodedPath = encodeURIComponent songFilename
     songPath = "file/#{encodedPath}?type=#{@playbackType.request}"
     @trigger "preloadStart", song, react
 
     successCallback = (song) =>
-      delete @preloads[songFilename song]
+      delete @preloads[@songInfo.filename song]
       @timeouter.reset()
 
       @preloadElement.empty()
@@ -324,7 +332,7 @@ class Player
     failCallback = (song) =>
       @trigger "preloadFailed", song, react
     errorCallback = (song) =>
-      delete @preloads[songFilename song]
+      delete @preloads[@songInfo.filename song]
       setTimeout (=> failCallback song), @timeouter.increaseTimeout()
     request.error (xhr, textStatus, errorThrown) =>
       # 302 redirect in Opera
@@ -370,7 +378,7 @@ viewTimeString = (total_seconds) ->
   return time_str
 
 
-PlayerView = (playerElement, player, songQueue) ->
+PlayerView = (songInfo, playerElement, player, songQueue) ->
   queueStatus = $("#queue-length", playerElement)
   queueStatus.text songQueue.length()
   songQueue.on "add", (song) ->
@@ -419,7 +427,7 @@ PlayerView = (playerElement, player, songQueue) ->
       return
     lastPreloadSong = song
     newsong = $("<span class='notloaded'>✘</span>")
-    newsong.attr "title", "#{songTitle(song)} / #{songAlbum(song)} / #{songArtist(song)} / #{songFilename song}"
+    newsong.attr "title", "#{songInfo.title(song)} / #{songInfo.album(song)} / #{songInfo.artist(song)} / #{songInfo.filename song}"
     nextSongStatusElement.html newsong
 
   player.on "preloadFailed", (song, react) ->
@@ -484,10 +492,10 @@ PlayerView = (playerElement, player, songQueue) ->
   albumElement = $("#album", currentSongStatusElement)
   titleElement = $("#title", currentSongStatusElement)
   player.on "preparePlay", (song) ->
-    currentSongStatusElement.attr "title", songFilename(song)
-    artistElement.text songArtist(song)
-    albumElement.text songAlbum(song)
-    titleElement.text songTitle(song)
+    currentSongStatusElement.attr "title", songInfo.filename(song)
+    titleElement.text songInfo.title(song)
+    albumElement.text songInfo.album(song)
+    artistElement.text songInfo.artist(song)
 
   artistElement.click ->
     searchValue = "artist:#{simpleNormalizeName artistElement.text()}-"
@@ -532,20 +540,13 @@ PlayerView = (playerElement, player, songQueue) ->
   player.on "preparePlay", (song) ->
     durationElement.text viewTimeString 0
 
-songToQueueRow = (song) ->
-  return [songTitle(song), songAlbum(song), songArtist(song)]
-
-initialPlayerComponentsHeight = (document) ->
 
 QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport) ->
-  columns = []
-
-  for column in PLAYLIST_BASIC_COLUMNS
-    columns.push column
+  columns = PLAYLIST_BASIC_COLUMNS
 
   queueData = []
   for song in queue.fullQueue()
-    queueData.push songToQueueRow song
+    queueData.push song
 
   table = queueElement.dataTable
     sScrollY: "#{viewport.playlistHeight}px"
@@ -565,7 +566,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
   queueWrapper.hide()
 
   queue.on "add", (song) ->
-    table.fnAddData songToQueueRow song
+    table.fnAddData song
 
   queue.on "next", (song) ->
     data = table.fnGetData()
@@ -588,21 +589,10 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
     song = queue.remove iPos
     player.play song
 
-PlaylistView = (playlistElement, songData, player, queue, router, search, viewport) ->
-  columns = []
+PlaylistView = (playlistElement, songInfo, songData, player, queue, router, search, viewport) ->
+  columns = PLAYLIST_BASIC_COLUMNS
 
-  columns.push
-    bSearchable: false
-    bVisible: false
-    bSortable: false
-    sWidth: "1px"
-
-  for column in PLAYLIST_BASIC_COLUMNS
-    columns.push column
-
-  tableData = []
-  for song in songData
-    tableData.push(song.data)
+  tableData = songData
 
   table = playlistElement.dataTable
     sScrollY: "#{viewport.playlistHeight}px"
@@ -634,7 +624,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
 
     # Front page for the first time:
     if not player.startedPlaying
-      if player.currentSong and (not songName? or songFilename(player.currentSong) == songName)
+      if player.currentSong and (not songName? or songInfo.filename(player.currentSong) == songName)
         # console.log "resume playing"
         player.resumePlaying()
       else
@@ -645,7 +635,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
     # Hash change while player has already started playing
     # something.
     if player.startedPlaying
-      if songName == songFilename(player.currentSong)
+      if songName == songInfo.filename(player.currentSong)
         # console.log "current song"
         return
 
@@ -653,7 +643,7 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
     # change.
     $(songData).each (index, element) =>
       song = songData[index]
-      if songFilename(song) == songName
+      if songInfo.filename(song) == songName
         # console.log "playing"
         player.play song
         queue.clearNext()
@@ -673,14 +663,14 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
   lastSong = null
 
   player.on "preparePlay", (song) ->
-    if lastHashChange != songFilename(song)
-      router.navigate "/" + songFilename(song)
+    if lastHashChange != songInfo.filename(song)
+      router.navigate "/" + songInfo.filename(song)
 
   previousRow = null
   focusRow = (song) ->
     if previousRow
       $(previousRow).removeClass "playing"
-    row = table.fnGetNodes songIndex(song)
+    row = table.fnGetNodes songInfo.index(song)
     $(row).addClass "playing"
     previousRow = row
 
@@ -689,9 +679,15 @@ PlaylistView = (playlistElement, songData, player, queue, router, search, viewpo
   if player.currentSong
     focusRow player.currentSong
 
+  $(playlistElement).on "mouseover", "tr", ->
+    aData = table.fnGetData @
+    [index, data...] = aData
+    $(@).attr "title", songInfo.filename songData[index]
+
   $(playlistElement).on "click", "tr", ->
     aData = table.fnGetData @
     [index, data...] = aData
+    console.log songData[index]
     queue.add songData[index]
 
   table.fnFilter = (string) ->
@@ -851,51 +847,45 @@ get_directory = (directories, filename) ->
 UNKNOWN_STRING = "UNKNOWN"
 
 
+class SongInfoGetter
+  constructor: (@directories, @filenames) ->
+
+  index: (song) =>
+    return song[0]
+
+  title: (song) =>
+    return song[1]
+
+  album: (song) =>
+    return song[2]
+
+  artist: (song) =>
+    return song[3]
+
+  filename: (song) =>
+    filename = @filenames[@index song]
+    directoryName = get_directory @directories, filename
+    [directory, basename] = filename.split "/"
+    if not basename
+      basename = filename
+    return "#{directoryName}#{basename}"
+
+
 class SongDisplay
   # @data can be shared with datatables.
   constructor: (@directories, @filename, @data) ->
 
 
-createSong = (fields, index, directories, fileinfo) ->
-
-  # This guess is often wrong as not everything is
-  # organized like this, but this is usually better
-  # than showing nothing.
-  filename = fileinfo[fields['filename']]
+createSong = (fields, index, fileinfo) ->
   title = fileinfo[fields['title']]
   album = fileinfo[fields['album']]
   artist = fileinfo[fields['artist']]
-  if not (title and album and artist)
-    filenameParts = filename.split "/"
-    [artistPart, albumPart, titlePart] = filenameParts[(filenameParts.length - 3)..(filenameParts.length - 1)]
   data = [index,
-    artist or artistPart or UNKNOWN_STRING,
-    album or albumPart or UNKNOWN_STRING,
-    title or titlePart or UNKNOWN_STRING]
-  return new SongDisplay directories, filename, data
-
-songIndex = (song) ->
-  return song.data[0]
-
-
-songTitle = (song) ->
-  return song.data[1]
-
-
-songAlbum = (song) ->
-  return song.data[2]
-
-
-songArtist = (song) ->
-  return song.data[3]
-
-
-songFilename = (song) ->
-  directoryName = get_directory song.directories, song.filename
-  [directory, basename] = song.filename.split "/"
-  if not basename
-    basename = song.filename
-  return "#{directoryName}#{basename}"
+    title or UNKNOWN_STRING,
+    album or UNKNOWN_STRING,
+    artist or UNKNOWN_STRING
+    ]
+  return data
 
 
 jsonToSong = (json_data) ->
@@ -905,14 +895,14 @@ jsonToSong = (json_data) ->
   return song
 
 
-songToJson = (song) ->
+songToJson = (songInfo, song) ->
   directoryName = ""
   basename = song.filename
   if song.filename.indexOf("/") != -1
     [directory, basename] = song.filename.split "/"
     directoryName = get_directory song.directories, song.filename
   data =
-    data: [0, songTitle(song), songAlbum(song), songArtist(song)]
+    data: [0, songInfo.title(song), songInfo.album(song), songInfo.artist(song)]
     directories: [directoryName]
     filename: "0/#{basename}"
   return data
@@ -961,20 +951,13 @@ $(document).ready ->
   playerElement = $(".player", playerContainer)
   preloadElement = $(".preload-player", playerContainer)
   timeouter = new RetryTimeouter()
-  playerInstance = new Player playerElement, preloadElement, localStorage, timeouter, playbackType
   songQueue = new SongQueue localStorage
-  preloader = new Preloader songQueue, playbackType, PRELOAD_COUNT
-  songQueue.on "queueChange", preloader.updatePreload
 
-  PlayerView playerContainer, playerInstance, songQueue
-
-  if localStorage.currentSong
-    currentSong = jsonToSong localStorage.currentSong
-    $("#title").text songTitle(currentSong)
-    $("#album").text songAlbum(currentSong)
-    $("#artist").text songArtist(currentSong)
-
-  HotkeysView playerInstance, songQueue, $("#play-control"), $("#next"), $("#toggle-queue"), $("#search")
+  # if localStorage.currentSong
+  #   currentSong = jsonToSong localStorage.currentSong
+  #   $("#title").text songTitle(currentSong)
+  #   $("#album").text songAlbum(currentSong)
+  #   $("#artist").text songArtist(currentSong)
 
   router = new PlayerRouter()
 
@@ -982,7 +965,6 @@ $(document).ready ->
 
   queueTable = $("#queue")
   playlist = $("#playlist")
-  QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
 
   # Unfortunately DataTables does not support relative widths. So we need
   # to calculate column widths here.
@@ -997,12 +979,13 @@ $(document).ready ->
   dataParser = (data, callback) ->
     search.initialize data
     start = (new Date()).getTime()
-    directoriesDisplay = [""]
+    directories = [""]
+    filenames = []
     for directory in data.directories[1...data.directories.length]
       [parentStr, name, normalizedName] = directory.split "/"
       if not normalizedName
         normalizedName = name
-      directoriesDisplay.push [parentStr, name].join "/"
+      directories.push [parentStr, name].join "/"
 
     progressCallback = ->
     fileId = 0
@@ -1022,17 +1005,25 @@ $(document).ready ->
       if fileId % FILE_PROGRESS_UPDATE_INTERVAL == 0
         progressCallback()
 
-      filesDisplay.push createSong fields, index, directoriesDisplay, fileinfo
+      filenames.push fileinfo[fields.filename]
+      filesDisplay.push createSong fields, index, fileinfo
 
     progressCallback()
-    createPlayerElements filesDisplay
+    songInfo = new SongInfoGetter directories, filenames
+    createPlayerElements songInfo, filesDisplay
 
-  createPlayerElements = (filesDisplay) ->
+  createPlayerElements = (songInfo, filesDisplay) ->
     songQueue.updateAll filesDisplay
 
     $("#initial-status").append $("<div>Creating playlist...</div>")
 
-    PlaylistView playlist, filesDisplay, playerInstance, songQueue, router, search, viewport
+    preloader = new Preloader songInfo, songQueue, playbackType, PRELOAD_COUNT
+    songQueue.on "queueChange", preloader.updatePreload
+    playerInstance = new Player songInfo, playerElement, preloadElement, localStorage, timeouter, playbackType
+    HotkeysView playerInstance, songQueue, $("#play-control"), $("#next"), $("#toggle-queue"), $("#search")
+    QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
+    PlayerView songInfo, playerContainer, playerInstance, songQueue
+    PlaylistView playlist, songInfo, filesDisplay, playerInstance, songQueue, router, search, viewport
 
     $("#initial-status").remove()
 
