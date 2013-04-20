@@ -962,10 +962,11 @@ $(document).ready ->
     directories = [""]
     filenames = []
     for directory in data.directories[1...data.directories.length]
-      [parentStr, name, normalizedName] = directory.split "/"
-      if not normalizedName
-        normalizedName = name
-      directories.push [parentStr, name].join "/"
+      lastSlash = directory.lastIndexOf "/"
+      if directory.indexOf "/" == lastSlash
+        directories.push directory
+      else
+        directories.push directory.substr 0, lastSlash
 
     progressCallback = ->
     fileId = 0

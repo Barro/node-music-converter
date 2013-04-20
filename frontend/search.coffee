@@ -73,7 +73,7 @@ createSearchList = (keywords) ->
 createSearchIndex = (directories, fileData, fields) ->
   filename = fileData[fields.filename_normalized] or fileData[fields.filename]
   directory = directories[fileData[fields.directory]]
-  index = [directory, "/", normalizeKey filename]
+  index = [directory + "/" + normalizeKey filename]
 
   title = fileData[fields.title_normalized] or fileData[fields.title]
   if title
@@ -112,7 +112,7 @@ class SearchCache
       if parentStr == ""
         continue
       parent = parseInt parentStr
-      directories[index] = [directories[parent], normalizedName].join "/"
+      directories[index] = directories[parent] + "/" + normalizedName
 
     for directory, index in directories
       directories[index] = normalizeKey directory
