@@ -817,38 +817,28 @@ HotkeysView = (player, queue, pauseElement, nextElement, toggleQueueElement, sea
     player.setVolume newVolume / VOLUME_STEPS
 
 
-class SongSearch
-  constructor: (fileObject) ->
-    if fileObject.filename_normalized
-      [directory, basename] = fileObject.filename.split("/")
-      @filename = "#{directory}/#{fileObject.filename_normalized}"
-    else
-      @filename = fileObject.filename
-    @title = fileObject.title_normalized or fileObject.title
-    @album = fileObject.album_normalized or fileObject.album
-    @artist = fileObject.artist_normalized or fileObject.artist
+class DirectoryNameGetter
+  constructor: (@directories) ->
 
-
-get_directory = (directories, filename) ->
-  directoryName = ""
-  if filename.indexOf("/") != -1
-    [parentStr, basefile] = filename.split "/"
-    parent = parseInt parentStr
-    basename = directoryName
-    while parent != 0
-      [parentStr, basename] = directories[parent].split "/"
-      if parentStr == ""
-        parent = 0
-      else
+  getName: (directoryId) =>
+    if not directoryId
+      return ""
+    directoryNameArray = [""]
+    if directoryId != 0
+      parent = directoryId
+      while parent != 0
+        [parentStr, basename] = @directories[parent].split "/"
+        directoryNameArray.push basename
         parent = parseInt parentStr
-      directoryName = "#{basename}/#{directoryName}"
-  return "/#{directoryName}"
+    directoryNameArray.push ""
+    directoryNameArray.reverse()
+    return directoryNameArray.join "/"
 
 UNKNOWN_STRING = "UNKNOWN"
 
 
 class SongInfoGetter
-  constructor: (@directories, @filenames) ->
+  constructor: (@directories, @songDirs, @filenames) ->
 
   index: (song) =>
     return song[0]
@@ -864,11 +854,9 @@ class SongInfoGetter
 
   filename: (song) =>
     filename = @filenames[@index song]
-    directoryName = get_directory @directories, filename
-    [directory, basename] = filename.split "/"
-    if not basename
-      basename = filename
-    return "#{directoryName}#{basename}"
+    directoryId = @songDirs[@index song]
+    directoryName = @directories.getName directoryId
+    return [directoryName, filename].join ""
 
 
 createSong = (fields, index, fileinfo) ->
@@ -992,16 +980,20 @@ $(document).ready ->
     for fieldKey, index in data.fields
       fields[fieldKey] = index
 
+    parentDirectoriesBuffer = new ArrayBuffer 4 * data.files.length
+    parentDirectories = new Uint32Array parentDirectoriesBuffer
     for fileinfo, index in data.files
       fileId++
       if fileId % FILE_PROGRESS_UPDATE_INTERVAL == 0
         progressCallback()
 
+      parentDirectories[index] = fileinfo[fields.directory]
       filenames.push fileinfo[fields.filename]
       filesDisplay.push createSong fields, index, fileinfo
 
     progressCallback()
-    songInfo = new SongInfoGetter directories, filenames
+    directoryNames = new DirectoryNameGetter directories
+    songInfo = new SongInfoGetter directoryNames, parentDirectories, filenames
     createPlayerElements songInfo, filesDisplay
 
   createPlayerElements = (songInfo, filesDisplay) ->

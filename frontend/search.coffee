@@ -71,9 +71,8 @@ createSearchList = (keywords) ->
 
 
 createSearchIndex = (directories, fileData, fields) ->
-  [directory_str, filename_raw] = fileData[fields.filename].split "/"
-  filename = fileData[fields.filename_normalized] or filename_raw
-  directory = normalizeKey directories[parseInt directory_str]
+  filename = fileData[fields.filename_normalized] or fileData[fields.filename]
+  directory = normalizeKey directories[fileData[fields.directory]]
   index = [directory, "/", normalizeKey filename]
 
   title = fileData[fields.title_normalized] or fileData[fields.title]

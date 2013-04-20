@@ -30,7 +30,7 @@ class FilenameShortener
     # Remove filename
     basename = parts.pop()
     if parts.length == 0
-      return basename
+      return [0, basename]
 
     firstPart = parts.shift()
     fullDirectory = firstPart
@@ -59,7 +59,7 @@ class FilenameShortener
         @directories.push addPart
         currentId = @directories.length - 1
         @directoryIds[fullDirectory] = currentId
-    return "#{currentId}/#{basename}"
+    return [currentId, basename]
 
 defaultShortener = new FilenameShortener()
 
@@ -155,7 +155,7 @@ exports.FileDatabaseView = class FileDatabaseView
   _createPlayerDatabase: (files) =>
     @log.info "Creating a new file database."
     shortFiles = []
-    fields = ["filename", "title", "artist", "album", "filename_normalized", "title_normalized", "artist_normalized", "album_normalized"]
+    fields = ["directory", "filename", "title", "artist", "album", "filename_normalized", "title_normalized", "artist_normalized", "album_normalized"]
 
     for fileinfo in files
       if not fileinfo.filename
@@ -163,8 +163,8 @@ exports.FileDatabaseView = class FileDatabaseView
 
       filename = @prefixStripper.strip fileinfo.filename
 
-      shortenedFilename = @filenameShortener.shorten filename
-      file = [shortenedFilename]
+      [directory, shortenedFilename] = @filenameShortener.shorten filename
+      file = [directory, shortenedFilename]
 
       file.push fileinfo.title or ""
       file.push fileinfo.artist or ""
