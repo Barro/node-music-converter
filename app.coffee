@@ -3,6 +3,7 @@ express = require "express"
 gzippo = require "gzippo"
 nodefs = require "node-fs"
 optimist = require "optimist"
+util = require "./util"
 winston = require "winston"
 _s = require "underscore.string"
 
@@ -13,6 +14,9 @@ argv = optimist
   .describe("cache-directory", "Cache directory for temporary files.")
   .default("root-path", "/")
   .describe("root-path", "Server root that all requests go to.")
+  .default("prefixes", null)
+  .describe("prefixes",
+    "A list of file prefixes that can be removed and still maintain unique filenames.")
   .usage("Usage: $0 [options] PLAYLIST")
   .demand(1)
   .argv
@@ -52,7 +56,12 @@ FileDatabase = require './file-database'
 
 Playlist = require "./playlist"
 
-files = new FileDatabase.FileDatabaseView cacheDir, cacheLocation, logger
+prefixStripper = new util.PrefixStripper []
+prefixesFile = argv['prefixes']
+if prefixesFile
+  prefixStripper = util.createPrefixStripper prefixesFile
+
+files = new FileDatabase.FileDatabaseView prefixStripper, cacheDir, cacheLocation, logger
 
 indexView = (req, res) ->
   res.render "index", {root: urlPath(''), cacheKey: files.cacheKey}

@@ -1,7 +1,6 @@
 crypto = require 'crypto'
 fs = require 'fs'
 path = require "path"
-lazy = require 'lazy'
 unorm = require 'unorm'
 
 
@@ -66,7 +65,7 @@ defaultShortener = new FilenameShortener()
 
 
 exports.FileDatabaseView = class FileDatabaseView
-  constructor: (@cacheDir, @cacheLocation, @log, @filenameShortener=defaultShortener) ->
+  constructor: (@prefixStripper, @cacheDir, @cacheLocation, @log, @filenameShortener=defaultShortener) ->
     @filenames = {}
     @cacheKey = ""
 
@@ -77,7 +76,6 @@ exports.FileDatabaseView = class FileDatabaseView
     return path.join @cacheDir, @_cacheName(type)
 
   _readCacheData: (filename, callback) =>
-
     stream = fs.ReadStream filename
     stream.on "error", (err) =>
       @log.info "Failed to read playlist cache: #{err}."
@@ -150,7 +148,8 @@ exports.FileDatabaseView = class FileDatabaseView
     filenames = {}
     # TODO unicode normalization for file names.
     for fileinfo in files
-      filenames[fileinfo.filename] = fileinfo.filename
+      filename = fileinfo.filename
+      filenames[@prefixStripper.strip filename] = filename
     return filenames
 
   _createPlayerDatabase: (files) =>
@@ -162,7 +161,9 @@ exports.FileDatabaseView = class FileDatabaseView
       if not fileinfo.filename
         continue
 
-      shortenedFilename = @filenameShortener.shorten fileinfo.filename
+      filename = @prefixStripper.strip fileinfo.filename
+
+      shortenedFilename = @filenameShortener.shorten filename
       file = [shortenedFilename]
 
       file.push fileinfo.title or ""

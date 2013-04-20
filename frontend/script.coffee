@@ -871,11 +871,6 @@ class SongInfoGetter
     return "#{directoryName}#{basename}"
 
 
-class SongDisplay
-  # @data can be shared with datatables.
-  constructor: (@directories, @filename, @data) ->
-
-
 createSong = (fields, index, fileinfo) ->
   title = fileinfo[fields['title']]
   album = fileinfo[fields['album']]
@@ -889,10 +884,7 @@ createSong = (fields, index, fileinfo) ->
 
 
 jsonToSong = (json_data) ->
-  song = new SongDisplay [], "", {}
-  for key, value in JSON.parse json_data
-    song[key] = value
-  return song
+  return JSON.parse json_data
 
 
 songToJson = (songInfo, song) ->
