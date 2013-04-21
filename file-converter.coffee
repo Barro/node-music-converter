@@ -81,7 +81,7 @@ class OpusConverter extends AudioConverter
   convert: (source, bitrate, target, callback) =>
     options =
       cwd: "/tmp/"
-    args = ["-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
+    args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
     @log.debug "Starting Opus conversion: #{FFMPEG} #{args.join(' ')}"
     ffmpeg = child_process.spawn FFMPEG, args, options
     ffmpeg.stdout.on 'data', (data) ->
@@ -119,7 +119,7 @@ class VorbisConverter extends AudioConverter
   convert: (source, bitrate, target, callback) =>
     options =
       cwd: "/tmp/"
-    args = ["-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
+    args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
     @log.debug "Starting Vorbis conversion: #{FFMPEG} #{args.join(' ')}"
     ffmpeg = child_process.spawn FFMPEG, args, options
     ffmpeg.stdout.on 'data', (data) ->
@@ -155,7 +155,7 @@ class Mp3Converter extends AudioConverter
   convert: (source, bitrate, target, callback) =>
     options =
       cwd: "/tmp/"
-    args = ["-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target]
+    args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target]
     @log.debug "Starting MP3 conversion: #{FFMPEG} #{args.join(' ')}"
     ffmpeg = child_process.spawn FFMPEG, args, options
     ffmpeg.stdout.on 'data', (data) ->
