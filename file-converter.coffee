@@ -106,7 +106,8 @@ class VorbisConverter extends AudioConverter
     options =
       cwd: "/tmp/"
     @log.debug "Starting Vorbis audio gain for #{target}"
-    vorbisgain = child_process.spawn "vorbisgain", [target], options
+    args = ["-q", target]
+    vorbisgain = child_process.spawn "vorbisgain", args, options
     vorbisgain.stdout.on 'data', (data) ->
     vorbisgain.stderr.on 'data', (data) ->
     vorbisgain.on "error", =>
@@ -143,7 +144,8 @@ class Mp3Converter extends AudioConverter
   _audioGain: (target, callback) =>
     options =
       cwd: "/tmp/"
-    mp3gain = child_process.spawn "mp3gain", [target], options
+    args = ["-q", target]
+    mp3gain = child_process.spawn "mp3gain", args, options
     mp3gain.stdout.on 'data', (data) ->
     mp3gain.stderr.on 'data', (data) ->
     mp3gain.on "error", =>
