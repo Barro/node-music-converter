@@ -530,8 +530,7 @@ PlayerView = (songInfo, playerElement, player, songQueue) ->
   positionSlider.bind "change", ->
     me = $(@)
     player.setPosition me.val()
-
-  positionSlider.val player.getPosition()
+    positionSlider.val player.getPosition()
 
   durationElement = $(".duration", playerElement)
   player.on "durationchange", (duration) ->
