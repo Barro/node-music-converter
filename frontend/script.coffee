@@ -46,6 +46,12 @@ PLAYLIST_BASIC_COLUMNS.push
   sClass: "artist"
   sWidth: "300px"
 
+
+showElapsed = (message, startTime) ->
+  now = (new Date()).getTime();
+  console.log "#{message}: #{now - startTime.getTime()}."
+
+
 simpleNormalizeName = (name) ->
   return name.replace /\s+/g, "-"
 
@@ -593,6 +599,7 @@ PlaylistView = (playlistElement, songInfo, songData, player, queue, router, sear
 
   tableData = songData
 
+  tableGenerationStart = new Date()
   table = playlistElement.dataTable
     sScrollY: "#{viewport.playlistHeight}px"
     sScrollX: "100%"
@@ -606,6 +613,7 @@ PlaylistView = (playlistElement, songInfo, songData, player, queue, router, sear
     bFilter: false
     bSort: false
     aaSorting: []
+  showElapsed "Playlist table generation", tableGenerationStart
 
   table.on "filter", (event, settings) =>
     visible = []
@@ -909,7 +917,9 @@ class Viewport
         @_updateHeight()
       setTimeout updateCallback, RESIZE_UPDATE_DELAY
 
-START_LOAD = (new Date()).getTime()
+START_LOAD = new Date()
+START_DOWNLOAD = null;
+START_PROCESS = null;
 
 SEARCH_WORKER = new Worker "/search.js"
 
@@ -956,8 +966,11 @@ $(document).ready ->
   search = new Search SEARCH_WORKER, localStorage
 
   dataParser = (data, callback) ->
+    showElapsed "Download time", START_DOWNLOAD
+    startInitialize = new Date()
     search.initialize data
-    start = (new Date()).getTime()
+    showElapsed "Initialize search message", startInitialize
+    startProcessing = new Date()
     directories = [""]
     filenames = []
     for directory in data.directories[1...data.directories.length]
@@ -992,9 +1005,12 @@ $(document).ready ->
       filesDisplay.push createSong fields, index, fileinfo
 
     progressCallback()
+    showElapsed "Data pre-processing", startProcessing
+    startUiInitialize = new Date()
     directoryNames = new DirectoryNameGetter directories
     songInfo = new SongInfoGetter directoryNames, parentDirectories, filenames
     createPlayerElements songInfo, filesDisplay
+    showElapsed "UI initialization", startUiInitialize
 
   createPlayerElements = (songInfo, filesDisplay) ->
     songQueue.updateAll filesDisplay
@@ -1007,15 +1023,19 @@ $(document).ready ->
     HotkeysView playerInstance, songQueue, $("#play-control"), $("#next"), $("#toggle-queue"), $("#search")
     QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
     PlayerView songInfo, playerContainer, playerInstance, songQueue
+    startPlaylistView = new Date()
     PlaylistView playlist, songInfo, filesDisplay, playerInstance, songQueue, router, search, viewport
+    showElapsed "Playlist view generation", startPlaylistView
 
     $("#initial-status").remove()
 
+    searchWait = new Date()
     search.on "initialize", ->
-      end = (new Date()).getTime()
-      console.log "TOTAL #{end - START_LOAD}"
+      showElapsed "Search wait", searchWait
+      showElapsed "TOTAL", START_LOAD
       Backbone.history.start()
 
+  START_DOWNLOAD = new Date()
   $.ajax
     url: "files"
     dataType: 'json'
