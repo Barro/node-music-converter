@@ -594,10 +594,54 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
     song = queue.remove iPos
     player.play song
 
-PlaylistView = (playlistElement, songInfo, songData, player, queue, router, search, viewport) ->
+
+class DataFilteringView
+  constructor: (@data) ->
+    @visible = [0...@data.length]
+
+  updateVisible: (@visible) =>
+
+  getSong: (index) =>
+    return @data[index]
+
+  getVisibleSongs: =>
+    result = []
+    for index in @visible
+      result.push @data[index]
+    return result
+
+  getDisplaySongs: (displayStart, displayLength) =>
+    resultData = []
+    start = displayStart
+    end = displayStart + displayLength
+    if end > @visible.length
+      end = @visible.length
+      start = Math.max 0, end - displayLength
+    visibleIndexes = @visible[start...end]
+    for index in visibleIndexes
+      resultData.push @data[index]
+    result =
+      totalRecords: @data.length
+      totalDisplayRecords: @visible.length
+      data: resultData
+    return result
+
+
+PlaylistView = (playlistElement, songInfo, dataFilter, player, queue, router, search, viewport) ->
   columns = PLAYLIST_BASIC_COLUMNS
 
-  tableData = songData
+  serverDataFunction = (sSource, aoData, fnCallback, oSettings) ->
+    parameters = {}
+    for queryParameter in aoData
+      parameters[queryParameter.name] = queryParameter.value
+
+    visible = dataFilter.getDisplaySongs parameters.iDisplayStart, parameters.iDisplayLength
+    result =
+      sEcho: aoData.sEcho
+      iTotalRecords: visible.totalRecords
+      iTotalDisplayRecords: visible.totalDisplayRecords
+      aaData: visible.data
+    fnCallback result
 
   tableGenerationStart = new Date()
   table = playlistElement.dataTable
@@ -608,18 +652,15 @@ PlaylistView = (playlistElement, songInfo, songData, player, queue, router, sear
     bAutoWidth: false
     sDom: "rtiS"
     bDeferRender: true
-    aaData: tableData
     aoColumns: columns
     bFilter: false
     bSort: false
     aaSorting: []
-  showElapsed "Playlist table generation", tableGenerationStart
+    sAjaxSource: "/"
+    bServerSide: true,
+    fnServerData: serverDataFunction
 
-  table.on "filter", (event, settings) =>
-    visible = []
-    for songIndex in settings.aiDisplay
-      visible.push songData[songIndex]
-    queue.updateVisible visible
+  showElapsed "Playlist table generation", tableGenerationStart
 
   lastHashChange = null
 
@@ -642,19 +683,19 @@ PlaylistView = (playlistElement, songInfo, songData, player, queue, router, sear
     # Hash change while player has already started playing
     # something.
     if player.startedPlaying
-      if songName == songInfo.filename(player.currentSong)
+      if songName == songInfo.filename player.currentSong
         # console.log "current song"
         return
 
     # Cases where the song is selected through the hash element
     # change.
-    $(songData).each (index, element) =>
-      song = songData[index]
-      if songInfo.filename(song) == songName
-        # console.log "playing"
-        player.play song
-        queue.clearNext()
-        return false
+    # $(songData).each (index, element) =>
+    #   song = songData[index]
+    #   if songInfo.filename(song) == songName
+    #     # console.log "playing"
+    #     player.play song
+    #     queue.clearNext()
+    #     return false
 
   router.on "play", hashChange
 
@@ -689,20 +730,23 @@ PlaylistView = (playlistElement, songInfo, songData, player, queue, router, sear
   $(playlistElement).on "mouseover", "tr", ->
     aData = table.fnGetData @
     [index, data...] = aData
-    $(@).attr "title", songInfo.filename songData[index]
+    $(@).attr "title", songInfo.filename dataFilter.getSong index
 
   $(playlistElement).on "click", "tr", ->
     aData = table.fnGetData @
     [index, data...] = aData
-    console.log songData[index]
-    queue.add songData[index]
+    queue.add dataFilter.getSong index
 
   table.fnFilter = (string) ->
     oSettings = @fnSettings()
     # Tell the draw function we have been filtering
     search.search string, (result) =>
+      # TODO this is stupid.
+      dataFilter.updateVisible result
+      queue.updateVisible dataFilter.getVisibleSongs()
+
       oSettings.bFiltered = true
-      oSettings.aiDisplay = result
+      # oSettings.aiDisplay = result
       $(oSettings.oInstance).trigger('filter', oSettings);
       # Redraw the table
       oSettings._iDisplayStart = 0;
@@ -1024,7 +1068,8 @@ $(document).ready ->
     QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
     PlayerView songInfo, playerContainer, playerInstance, songQueue
     startPlaylistView = new Date()
-    PlaylistView playlist, songInfo, filesDisplay, playerInstance, songQueue, router, search, viewport
+    dataFilter = new DataFilteringView filesDisplay, search
+    PlaylistView playlist, songInfo, dataFilter, playerInstance, songQueue, router, search, viewport
     showElapsed "Playlist view generation", startPlaylistView
 
     $("#initial-status").remove()
