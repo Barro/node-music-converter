@@ -659,6 +659,8 @@ PlaylistView = (playlistElement, songInfo, dataFilter, player, queue, router, se
     sAjaxSource: "/"
     bServerSide: true,
     fnServerData: serverDataFunction
+    oScroller:
+      serverWait: 0
 
   showElapsed "Playlist table generation", tableGenerationStart
 
