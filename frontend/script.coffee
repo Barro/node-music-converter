@@ -248,7 +248,8 @@ class Player
     @startedPlaying = false
     if @storage.currentSong
       try
-        @currentSong = jsonToSong @storage.currentSong
+        songData = JSON.parse @storage.currentSong
+        @currentSong = songData.songData
         @lastPosition = parseInt @storage.continuePosition
         @resumePlaying()
       catch error
@@ -286,6 +287,8 @@ class Player
       if @continuePosition
         @player.currentTime = @continuePosition
         @continuePosition = 0
+      console.log "Playing #{currentSource}..."
+      console.log @currentSong
       @player.play()
       @trigger "play", @currentSong
 
@@ -302,7 +305,7 @@ class Player
     @lastSource = songSource
     # console.log "last source: #{@lastSource}"
     @currentSong = song
-    #@storage.currentSong = JSON.stringify songToJson @songInfo, @currentSong
+    @storage.currentSong = JSON.stringify songToJson @songInfo, @currentSong
     # Preload the currently playing song to handle cases where we
     # fail to play the requested song. As audio element does not
     # send any events on failed playback, we need to use another
@@ -873,6 +876,8 @@ HotkeysView = (player, queue, pauseElement, nextElement, toggleQueueElement, sea
 class DirectoryNameGetter
   constructor: (@directories) ->
 
+  update: (@directories) =>
+
   getName: (directoryId) =>
     if not directoryId
       return ""
@@ -893,6 +898,8 @@ UNKNOWN_STRING = "UNKNOWN"
 class SongInfoGetter
   constructor: (@directories, @songDirs, @filenames) ->
 
+  update: (@directories, @songDirs, @filenames) =>
+
   index: (song) =>
     return song[0]
 
@@ -905,11 +912,17 @@ class SongInfoGetter
   artist: (song) =>
     return song[3]
 
-  filename: (song) =>
-    filename = @filenames[@index song]
+  directory: (song) =>
     directoryId = @songDirs[@index song]
-    directoryName = @directories.getName directoryId
-    return [directoryName, filename].join ""
+    return @directories.getName directoryId
+
+  basename: (song) =>
+    return @filenames[@index song]
+
+  filename: (song) =>
+    basename = @basename song
+    directoryName = @directory song
+    return [directoryName, basename].join ""
 
 
 createSong = (fields, index, fileinfo) ->
@@ -929,15 +942,13 @@ jsonToSong = (json_data) ->
 
 
 songToJson = (songInfo, song) ->
-  directoryName = ""
-  basename = song.filename
-  if song.filename.indexOf("/") != -1
-    [directory, basename] = song.filename.split "/"
-    directoryName = get_directory song.directories, song.filename
+  songData = _.clone song
+  songData[0] = 0
   data =
-    data: [0, songInfo.title(song), songInfo.album(song), songInfo.artist(song)]
-    directories: [directoryName]
-    filename: "0/#{basename}"
+    songData: songData
+    directoryNames: ["", songInfo.directory song]
+    songDirs: [1]
+    filenames: [songInfo.basename song]
   return data
 
 
@@ -988,12 +999,6 @@ $(document).ready ->
   timeouter = new RetryTimeouter()
   songQueue = new SongQueue localStorage
 
-  # if localStorage.currentSong
-  #   currentSong = jsonToSong localStorage.currentSong
-  #   $("#title").text songTitle(currentSong)
-  #   $("#album").text songAlbum(currentSong)
-  #   $("#artist").text songArtist(currentSong)
-
   router = new PlayerRouter()
 
   viewport = new Viewport document
@@ -1010,6 +1015,21 @@ $(document).ready ->
   $("#initial-status").show()
 
   search = new Search SEARCH_WORKER, localStorage
+  try
+    storedSong = JSON.parse localStorage.currentSong
+  catch error
+    storedSong = {}
+  storedDirectories = storedSong.directories or [""]
+  directoryNames = new DirectoryNameGetter storedDirectories
+  songDirs = storedSong.songDirs or [0]
+  filenames = storedSong.filenames or [""]
+  songInfo = new SongInfoGetter directoryNames, songDirs, filenames
+  playerInstance = new Player songInfo, playerElement, preloadElement, localStorage, timeouter, playbackType
+
+  if storedSong.songData
+    $("#title").text songInfo.title storedSong.songData
+    $("#album").text songInfo.album storedSong.songData
+    $("#artist").text songInfo.artist storedSong.songData
 
   dataParser = (data, callback) ->
     showElapsed "Download time", START_DOWNLOAD
@@ -1053,8 +1073,8 @@ $(document).ready ->
     progressCallback()
     showElapsed "Data pre-processing", startProcessing
     startUiInitialize = new Date()
-    directoryNames = new DirectoryNameGetter directories
-    songInfo = new SongInfoGetter directoryNames, parentDirectories, filenames
+    directoryNames.update directories
+    songInfo.update directoryNames, parentDirectories, filenames
     createPlayerElements songInfo, filesDisplay
     showElapsed "UI initialization", startUiInitialize
 
@@ -1065,7 +1085,6 @@ $(document).ready ->
 
     preloader = new Preloader songInfo, songQueue, playbackType, PRELOAD_COUNT
     songQueue.on "queueChange", preloader.updatePreload
-    playerInstance = new Player songInfo, playerElement, preloadElement, localStorage, timeouter, playbackType
     HotkeysView playerInstance, songQueue, $("#play-control"), $("#next"), $("#toggle-queue"), $("#search")
     QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
     PlayerView songInfo, playerContainer, playerInstance, songQueue
