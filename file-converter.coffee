@@ -29,7 +29,12 @@ class ModPreprocessor
     options =
       cwd: "/tmp/"
     args = ["--nocmd", "-o", resultFile, source]
-    xmp = child_process.spawn XMP, args, options
+    try
+      xmp = child_process.spawn XMP, args, options
+    catch error
+      @log.error "Failed to start the encoding process: #{error.message}."
+      callback error
+      return
     @log.debug "Started xmp with #{XMP} #{_s.join ' ', args...}."
     xmp.on "error", =>
       throw new Error "No xmp executable '#{XMP}' in path!"
@@ -83,7 +88,12 @@ class OpusConverter extends AudioConverter
       cwd: "/tmp/"
     args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
     @log.debug "Starting Opus conversion: #{FFMPEG} #{args.join(' ')}"
-    ffmpeg = child_process.spawn FFMPEG, args, options
+    try
+      ffmpeg = child_process.spawn FFMPEG, args, options
+    catch error
+      @log.error "Failed to start the encoding process: #{error.message}."
+      callback error
+      return
     ffmpeg.stdout.on 'data', (data) ->
     ffmpeg.stderr.on 'data', (data) ->
     ffmpeg.on "error", =>
@@ -107,7 +117,12 @@ class VorbisConverter extends AudioConverter
       cwd: "/tmp/"
     @log.debug "Starting Vorbis audio gain for #{target}"
     args = ["-q", target]
-    vorbisgain = child_process.spawn "vorbisgain", args, options
+    try
+      vorbisgain = child_process.spawn "vorbisgain", args, options
+    catch error
+      @log.error "Failed to start the encoding process: #{error.message}."
+      callback error
+      return
     vorbisgain.stdout.on 'data', (data) ->
     vorbisgain.stderr.on 'data', (data) ->
     vorbisgain.on "error", =>
@@ -122,7 +137,12 @@ class VorbisConverter extends AudioConverter
       cwd: "/tmp/"
     args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
     @log.debug "Starting Vorbis conversion: #{FFMPEG} #{args.join(' ')}"
-    ffmpeg = child_process.spawn FFMPEG, args, options
+    try
+      ffmpeg = child_process.spawn FFMPEG, args, options
+    catch error
+      @log.error "Failed to start the encoding process: #{error.message}."
+      callback error
+      return
     ffmpeg.stdout.on 'data', (data) ->
     ffmpeg.stderr.on 'data', (data) ->
     ffmpeg.on "error", =>
@@ -145,7 +165,12 @@ class Mp3Converter extends AudioConverter
     options =
       cwd: "/tmp/"
     args = ["-q", target]
-    mp3gain = child_process.spawn "mp3gain", args, options
+    try
+      mp3gain = child_process.spawn "mp3gain", args, options
+    catch error
+      @log.error "Failed to start the encoding process: #{error.message}."
+      callback error
+      return
     mp3gain.stdout.on 'data', (data) ->
     mp3gain.stderr.on 'data', (data) ->
     mp3gain.on "error", =>
@@ -159,7 +184,12 @@ class Mp3Converter extends AudioConverter
       cwd: "/tmp/"
     args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target]
     @log.debug "Starting MP3 conversion: #{FFMPEG} #{args.join(' ')}"
-    ffmpeg = child_process.spawn FFMPEG, args, options
+    try
+      ffmpeg = child_process.spawn FFMPEG, args, options
+    catch error
+      @log.error "Failed to start the encoding process: #{error.message}."
+      callback error
+      return
     ffmpeg.stdout.on 'data', (data) ->
     ffmpeg.stderr.on 'data', (data) ->
     ffmpeg.on "error", =>
@@ -182,7 +212,12 @@ class FileCacheInstance
 
 
 exports.FileCache = class FileCache
-  constructor: (@cachedir="/tmp", @cacheLocation) ->
+  constructor: (@log, @cachedir="/tmp", @cacheLocation, @hitHistorySize=100) ->
+    @hits = []
+    @hitId = 0
+    for id in [0...@hitHistorySize]
+      @hits.push true
+    @hitSum = @hitHistorySize
 
   generate: (conversionParams) =>
     return new FileCacheInstance @, conversionParams
@@ -214,9 +249,17 @@ exports.FileCache = class FileCache
   getCached: (conversionParams, callback) =>
     filepath = @_getCacheName conversionParams
     fs.exists filepath, (exists) =>
+      @hitId++
+      lastHit = @hits[@hitId % @hitHistorySize]
       if not exists
+        @hitSum += if lastHit then -1 else 0
+        @hits[@hitId % @hitHistorySize] = false
+        @log.debug "Cache hit rate: #{@hitSum / @hitHistorySize}"
         callback "File '#{filepath}' does not exist.", null
         return
+      @hitSum += if lastHit then 0 else 1
+      @hits[@hitId % @hitHistorySize] = true
+      @log.debug "Cache hit rate: #{@hitSum / @hitHistorySize}"
       callback null, @_getLocation conversionParams
 
   createCache: (convertedFilename, conversionParams, callback) =>
@@ -282,12 +325,16 @@ class FileConverter
         callback {data: ["Go to #{location}", 302], headers: {"location": location}}
 
   _conversionDone: (err, cacheInstance, tempname) =>
-    @log.debug "Conversion finished."
+    if err
+      @log.warn "Conversion for cache instance #{cacheInstance.getKey()} finished with error: #{err}."
+    else
+      @log.debug "Conversion for cache instance #{cacheInstance.getKey()} finished correctly."
     @_createResponse err, cacheInstance, tempname, (responseParams) =>
-      @log.debug "Sending response to clients: #{tempname}."
-      for response in @_ongoingConversions[cacheInstance.getKey()]
-        [content, code] = responseParams.data
-        response responseParams.headers, content, code
+      clients = @_ongoingConversions[cacheInstance.getKey()]
+      @log.debug "Sending response '#{tempname}' to #{clients.length} clients."
+      [content, code] = responseParams.data
+      for clientResponse in clients
+        clientResponse responseParams.headers, content, code
       delete @_ongoingConversions[cacheInstance.getKey()]
 
   convert: (type, filename, responseCallback) =>
@@ -332,14 +379,20 @@ class FileConverter
           @log.debug "Conversion done for #{sourceName} with error '#{err}' and cleanup #{delfile}."
           if err
             if delfile
-              fs.unlink sourceName, (err) =>
+              unlinkCallback = (err) =>
                 if err
                   @log.warn "Failed to delete source file #{sourceName}: #{err}"
                 else
                   @log.debug "Unlinked #{sourceName}."
+              try
+                fs.unlink sourceName, unlinkCallback
+              catch error
+                @log.error "Unable to delete file #{sourceName}: #{error}"
             @_conversionDone err, cacheInstance, tempname
             return
           converter.convert sourceName, @bitrate, tempname, (err) =>
+            if err
+              @log.warn "Conversion of #{sourceName} failed: #{err}."
             if delfile
               fs.unlink sourceName, (err) =>
                 if err
@@ -365,7 +418,7 @@ exports.FileConverterView = class FileConverterView
   _convert: (request, responseCallback) =>
     filename = request.params[0]
     if not @fileDatabase.exists filename
-      response.send "Not found", 404
+      responseCallback {}, "Not found", 404
       return
     fullPath = @fileDatabase.getPath filename
     targetType = request.query.type or @defaultType

@@ -72,7 +72,7 @@ app.get urlPath(''), indexView
 app.get urlPath('files'), files.view
 
 FileConverter = require './file-converter'
-cache = new FileConverter.FileCache cacheDir, cacheLocation
+cache = new FileConverter.FileCache logger, cacheDir, cacheLocation
 converter = new FileConverter.FileConverterView logger, files, cache
 
 app.get urlPath('file/*'), converter.redirectView
