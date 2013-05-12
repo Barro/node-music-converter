@@ -1,10 +1,11 @@
 Node music converter
 ====================
 
-Node music converter is a HTML 5 based music player that converts
-music collection to web playable format on song basis. It uses
-Audacious playlist format for the playlist and ffmpeg for conversion
-and supports any format that ffmpeg can convert.
+Node music converter is a HTML 5 based music player designed for huge
+music collections that converts music collection to a web playable
+format on song basis. It uses Audacious playlist format for the
+playlist and ffmpeg for conversion and supports any format that ffmpeg
+can convert.
 
 Design goals
 ------------
@@ -13,11 +14,11 @@ The design goals of this program are following:
 
 * A HTML 5 music player (no Flash for music playback).
 * Survive large (around 100k songs) playlists without hiccups.
-* Provide immediate client side searches (no visible delay) for the
+* Provide immediate client side searches (no endurable delay) for the
   playlist data.
 * Support highly varied music formats with broken metadata
   information. Also support metadata for different writing systems
-  that is possibly encoded with different character sets.
+  that are possibly encoded with different character sets.
 * Support my style of music playback patterns.
 
 To achieve these it uses following techniques:
@@ -31,9 +32,10 @@ To achieve these it uses following techniques:
   for search.
 * [Audacious](http://audacious-media-player.org/) for playlist data
   creation.
-* [FFmpeg](http://www.ffmpeg.org/) with [Node.js](http://nodejs.org/)
-  to convert existing music on fly to something that the browser
-  supports.
+* [FFmpeg](http://www.ffmpeg.org/) and
+  [XMP](http://xmp.sourceforge.net/) with
+  [Node.js](http://nodejs.org/) to convert existing music on fly to
+  something that the browser supports.
 
 Installation
 ============
