@@ -265,12 +265,20 @@ exports.FileCache = class FileCache
   createCache: (convertedFilename, conversionParams, callback) =>
     filepath = @_getCacheName conversionParams
     input = fs.createReadStream convertedFilename
+    stream_error = null
     input.on "error", (err) =>
-      console.log "Read stream error: #{err}"
+      @log.error "Read stream error #{convertedFilename}: #{err}"
+      stream_error = err
     output = fs.createWriteStream filepath
+    output.on "error", (err) =>
+      @log.error "Write stream error for #{convertedFilename}: #{err}"
+      fs.unlink filepath, (err_unlink) =>
+        if err_unlink
+          @log.warn "Failed to unlink errored file #{filepath}: #{err_unlink}"
+      stream_error = err
     input.pipe output
     input.on "end", =>
-      callback null, @_getLocation conversionParams
+      callback stream_error, @_getLocation conversionParams
 
 createPreloadCallback = (response) ->
   responseCallback = (headers, content, code) ->
@@ -314,15 +322,23 @@ class FileConverter
       return
     fs.stat tempname, (statErr, stats) =>
       if statErr
-        callback {data: ["Failed to read resulting file name.", 500], headers: {}}
+        callback {data: ["Failed to read the converted file name.", 500], headers: {}}
+        fs.unlink tempname, (err_unlink) =>
+          if err_unlink
+            @log.warn "Failed to unlink file on stat error #{tempname}: #{err_unlink}"
+          else
+            @log.debug "Unlinked on stat error #{tempname}."
         return
       cacheInstance.createCache tempname, (err, location) =>
-        fs.unlink tempname, (err) =>
-          if err
-            @log.warn "Failed to unlink file #{tempname}: #{err}"
+        fs.unlink tempname, (err_unlink) =>
+          if err_unlink
+            @log.warn "Failed to unlink file #{tempname}: #{err_unlink}"
           else
             @log.debug "Unlinked #{tempname}."
-        callback {data: ["Go to #{location}", 302], headers: {"location": location}}
+        if err
+          callback {data: ["Failed to create a cache instance.", 503], headers: {}}
+        else
+          callback {data: ["Go to #{location}", 302], headers: {"location": location}}
 
   _conversionDone: (err, cacheInstance, tempname) =>
     if err
