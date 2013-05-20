@@ -549,12 +549,12 @@ PlayerView = (songInfo, playerElement, player, songQueue) ->
     durationElement.text viewTimeString 0
 
 
-QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport) ->
+QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport, songInfo) ->
   columns = PLAYLIST_BASIC_COLUMNS
 
   queueData = []
   for song in queue.fullQueue()
-    queueData.push song
+    queueData.push getDisplayData songInfo, song
 
   table = queueElement.dataTable
     sScrollY: "#{viewport.playlistHeight}px"
@@ -574,7 +574,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
   queueWrapper.hide()
 
   queue.on "add", (song) ->
-    table.fnAddData song
+    table.fnAddData getDisplayData songInfo, song
 
   queue.on "next", (song) ->
     data = table.fnGetData()
@@ -596,6 +596,14 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
     iPos = table.fnGetPosition @
     song = queue.remove iPos
     player.play song
+
+
+getDisplayData = (songInfo, song) ->
+  index = songInfo.index song
+  title = songInfo.title song
+  album = songInfo.album song
+  artist = songInfo.artist song
+  return [index, title, album, artist]
 
 
 class DataFilteringView
@@ -622,10 +630,7 @@ class DataFilteringView
       start = Math.max 0, end - displayLength
     visibleIndexes = @visible[start...end]
     for index in visibleIndexes
-      title = @songInfo.title @data[index]
-      album = @songInfo.album @data[index]
-      artist = @songInfo.artist @data[index]
-      resultData.push [index, title, album, artist]
+      resultData.push getDisplayData @songInfo, @data[index]
     result =
       totalRecords: @data.length
       totalDisplayRecords: @visible.length
@@ -1104,7 +1109,7 @@ $(document).ready ->
     preloader = new Preloader songInfo, songQueue, playbackType, PRELOAD_COUNT
     songQueue.on "queueChange", preloader.updatePreload
     HotkeysView playerInstance, songQueue, $("#play-control"), $("#next"), $("#toggle-queue"), $("#search")
-    QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
+    QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport, songInfo
     PlayerView songInfo, playerContainer, playerInstance, songQueue
     startPlaylistView = new Date()
     dataFilter = new DataFilteringView songInfo, filesDisplay
