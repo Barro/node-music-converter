@@ -599,7 +599,7 @@ QueueView = (queueButton, queueElement, queue, player, playlistElement, viewport
 
 
 class DataFilteringView
-  constructor: (@data) ->
+  constructor: (@songInfo, @data) ->
     @visible = [0...@data.length]
 
   updateVisible: (@visible) =>
@@ -622,7 +622,10 @@ class DataFilteringView
       start = Math.max 0, end - displayLength
     visibleIndexes = @visible[start...end]
     for index in visibleIndexes
-      resultData.push @data[index]
+      title = @songInfo.title @data[index]
+      album = @songInfo.album @data[index]
+      artist = @songInfo.artist @data[index]
+      resultData.push [index, title, album, artist]
     result =
       totalRecords: @data.length
       totalDisplayRecords: @visible.length
@@ -884,6 +887,8 @@ class DirectoryNameGetter
     directoryNameArray = [""]
     if directoryId != 0
       parent = directoryId
+      if not @directories[parent]
+        return ""
       while parent != 0
         [parentStr, basename] = @directories[parent].split "/"
         directoryNameArray.push basename
@@ -904,13 +909,30 @@ class SongInfoGetter
     return song[0]
 
   title: (song) =>
-    return song[1]
+    result = song[1]
+    if not result
+      result = @basename(song).replace /\.[^.]+$/, ""
+    if not result
+      return UNKNOWN_STRING
+    return result
 
   album: (song) =>
-    return song[2]
+    result = song[2]
+    if not result
+      parts = @directory(song).split "/"
+      result = parts[parts.length - 2]
+    if not result
+      return UNKNOWN_STRING
+    return result
 
   artist: (song) =>
-    return song[3]
+    result = song[3]
+    if not result
+      parts = @directory(song).split "/"
+      result = parts[parts.length - 3]
+    if not result
+      return UNKNOWN_STRING
+    return result
 
   directory: (song) =>
     directoryId = @songDirs[@index song]
@@ -929,11 +951,7 @@ createSong = (fields, index, fileinfo) ->
   title = fileinfo[fields['title']]
   album = fileinfo[fields['album']]
   artist = fileinfo[fields['artist']]
-  data = [index,
-    title or UNKNOWN_STRING,
-    album or UNKNOWN_STRING,
-    artist or UNKNOWN_STRING
-    ]
+  data = [index, title, album, artist]
   return data
 
 
@@ -1089,7 +1107,7 @@ $(document).ready ->
     QueueView $("#toggle-queue"), queueTable, songQueue, playerInstance, playlist, viewport
     PlayerView songInfo, playerContainer, playerInstance, songQueue
     startPlaylistView = new Date()
-    dataFilter = new DataFilteringView filesDisplay, search
+    dataFilter = new DataFilteringView songInfo, filesDisplay
     PlaylistView playlist, songInfo, dataFilter, playerInstance, songQueue, router, search, viewport
     showElapsed "Playlist view generation", startPlaylistView
 
