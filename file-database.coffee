@@ -155,7 +155,7 @@ exports.FileDatabaseView = class FileDatabaseView
   _createPlayerDatabase: (files) =>
     @log.info "Creating a new file database."
     shortFiles = []
-    fields = ["directory", "filename", "title", "artist", "album", "filename_normalized", "title_normalized", "artist_normalized", "album_normalized"]
+    fields = ["directory", "length", "filename", "title", "artist", "album", "filename_normalized", "title_normalized", "artist_normalized", "album_normalized"]
 
     for fileinfo in files
       if not fileinfo.filename
@@ -164,7 +164,7 @@ exports.FileDatabaseView = class FileDatabaseView
       filename = @prefixStripper.strip fileinfo.filename
 
       [directory, shortenedFilename] = @filenameShortener.shorten filename
-      file = [directory, shortenedFilename]
+      file = [directory, parseInt(fileinfo.length) or 0, shortenedFilename]
 
       file.push fileinfo.title or ""
       file.push fileinfo.artist or ""

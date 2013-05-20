@@ -18,6 +18,8 @@ MAXIMUM_RETRY_TIMEOUT = 5000
 
 VOLUME_STEPS = 100
 
+SCROLLBAR_WIDTH = 20
+
 PLAYLIST_BASIC_COLUMNS.push
   bSearchable: false
   bVisible: false
@@ -30,21 +32,28 @@ PLAYLIST_BASIC_COLUMNS.push
   sTitle: "Title"
   bSortable: false
   sClass: "title"
-  sWidth: "300px"
+  sWidth: "250px"
 
 PLAYLIST_BASIC_COLUMNS.push
   bSearchable: false
   sTitle: "Album"
   bSortable: false
   sClass: "album"
-  sWidth: "300px"
+  sWidth: "250px"
 
 PLAYLIST_BASIC_COLUMNS.push
   bSearchable: false
   sTitle: "Artist"
   bSortable: false
   sClass: "artist"
-  sWidth: "300px"
+  sWidth: "250px"
+
+PLAYLIST_BASIC_COLUMNS.push
+  bSearchable: false
+  sTitle: "Length"
+  bSortable: false
+  sClass: "length"
+  sWidth: "30px"
 
 
 showElapsed = (message, startTime) ->
@@ -603,7 +612,8 @@ getDisplayData = (songInfo, song) ->
   title = songInfo.title song
   album = songInfo.album song
   artist = songInfo.artist song
-  return [index, title, album, artist]
+  length = songInfo.lengthDisplay song
+  return [index, title, album, artist, length]
 
 
 class DataFilteringView
@@ -904,7 +914,6 @@ class DirectoryNameGetter
 
 UNKNOWN_STRING = "UNKNOWN"
 
-
 class SongInfoGetter
   constructor: (@directories, @songDirs, @filenames) ->
 
@@ -939,6 +948,16 @@ class SongInfoGetter
       return UNKNOWN_STRING
     return result
 
+  length: (song) =>
+    result = song[4]
+    if not result
+      return 0
+    return result
+
+  lengthDisplay: (song) =>
+    result = @length song
+    return viewTimeString result / 1000
+
   directory: (song) =>
     directoryId = @songDirs[@index song]
     return @directories.getName directoryId
@@ -953,10 +972,11 @@ class SongInfoGetter
 
 
 createSong = (fields, index, fileinfo) ->
-  title = fileinfo[fields['title']]
-  album = fileinfo[fields['album']]
-  artist = fileinfo[fields['artist']]
-  data = [index, title, album, artist]
+  title = fileinfo[fields.title]
+  album = fileinfo[fields.album]
+  artist = fileinfo[fields.artist]
+  length = fileinfo[fields.length]
+  data = [index, title, album, artist, length]
   return data
 
 
@@ -1032,7 +1052,8 @@ $(document).ready ->
   # Unfortunately DataTables does not support relative widths. So we need
   # to calculate column widths here.
   documentWidth = $(document).width()
-  columnWidth = documentWidth / 3 - 20
+  lengthColumnWidth = $(".length-column").width()
+  columnWidth = documentWidth / ["artist", "album", "title"].length - SCROLLBAR_WIDTH - lengthColumnWidth
   $("<style type='text/css'>.album, .artist, .title { max-width: #{columnWidth}; }</style>").appendTo("head");
 
   $("#initial-status").show()
