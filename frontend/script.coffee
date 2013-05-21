@@ -64,6 +64,11 @@ showElapsed = (message, startTime) ->
 simpleNormalizeName = (name) ->
   return name.replace /\s+/g, "-"
 
+stripEmptyItems = (list) ->
+  while not list[list.length - 1]
+    list.length--
+  return list
+
 class RetryTimeouter
   constructor: (@minTimeout=MINIMUM_RETRY_TIMEOUT, @maxTimeout=MAXIMUM_RETRY_TIMEOUT) ->
     @reset()
@@ -923,7 +928,7 @@ class SongInfoGetter
     return song[0]
 
   title: (song) =>
-    result = song[1]
+    result = song[2]
     if not result
       result = @basename(song).replace /\.[^.]+$/, ""
     if not result
@@ -931,7 +936,7 @@ class SongInfoGetter
     return result
 
   album: (song) =>
-    result = song[2]
+    result = song[3]
     if not result
       parts = @directory(song).split "/"
       result = parts[parts.length - 2]
@@ -940,7 +945,7 @@ class SongInfoGetter
     return result
 
   artist: (song) =>
-    result = song[3]
+    result = song[4]
     if not result
       parts = @directory(song).split "/"
       result = parts[parts.length - 3]
@@ -949,7 +954,7 @@ class SongInfoGetter
     return result
 
   length: (song) =>
-    result = song[4]
+    result = song[1]
     if not result
       return 0
     return result
@@ -976,8 +981,7 @@ createSong = (fields, index, fileinfo) ->
   album = fileinfo[fields.album]
   artist = fileinfo[fields.artist]
   length = fileinfo[fields.length]
-  data = [index, title, album, artist, length]
-  return data
+  return stripEmptyItems [index, length, title, album, artist]
 
 
 jsonToSong = (json_data) ->
