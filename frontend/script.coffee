@@ -69,6 +69,30 @@ stripEmptyItems = (list) ->
     list.length--
   return list
 
+
+class PlaybackState
+  constructor: (@storage) ->
+    @songDirs = [""]
+    @filenames = [""]
+    @currentSong = [0, 0.0, "", "", ""]
+    @queue = [@currentSong]
+    @playbackPosition = 0.0
+    @volume = 1.0
+    @lastSearch = ""
+
+  setVolume: (volume) =>
+
+  setPlaybackPosition: (position) =>
+
+  setCurrentSong: (song) =>
+
+  setQueue: (queue) =>
+
+  setNextSong: (song) =>
+
+  setSearch: (search) =>
+
+
 class RetryTimeouter
   constructor: (@minTimeout=MINIMUM_RETRY_TIMEOUT, @maxTimeout=MAXIMUM_RETRY_TIMEOUT) ->
     @reset()
@@ -312,11 +336,10 @@ class Player
 
   play: (song) =>
     @playerElement.empty()
-    encodedPath = encodeURIComponent @songInfo.filename song
-    songSource = "file/#{encodedPath}?type=#{@playbackType.request}"
-    @playerElement.append "<source src=\"#{songSource}\" type='#{@playbackType.mime}' />"
+    songUrl = @songInfo.url song
+    @playerElement.append "<source src=\"#{songUrl}\" type='#{@playbackType.mime}' />"
     @player.load()
-    @lastSource = songSource
+    @lastSource = songUrl
     # console.log "last source: #{@lastSource}"
     @currentSong = song
     @storage.currentSong = JSON.stringify songToJson @songInfo, @currentSong
@@ -385,6 +408,9 @@ class Player
 
   isPlaying: =>
     return @player.networkState != @player.NETWORK_NO_SOURCE
+
+  playbackTypeId: =>
+    return @playbackType.request.toUpperCase()
 
 
 viewTimeString = (total_seconds) ->
@@ -758,7 +784,25 @@ PlaylistView = (playlistElement, songInfo, dataFilter, player, queue, router, se
   $(playlistElement).on "mouseover", "tr", ->
     aData = table.fnGetData @
     [index, data...] = aData
-    $(@).attr "title", songInfo.filename dataFilter.getSong index
+    song = dataFilter.getSong index
+    $(@).attr "title", songInfo.filename song
+    if $(".song-link", @).length > 0
+      return
+    lengthElement = $(".length", @)
+    length = lengthElement.text()
+    lengthElement.text ""
+    songUrl = songInfo.url song
+    lengthElement.append $("<a class='song-link' href='#{songUrl}'>#{length}</a>")
+
+  $(playlistElement).on "mouseout", "tr", (event) ->
+    target = event.toElement || event.relatedTarget;
+    for parent in $(target).parents()
+      if parent == @
+        return
+    lengthElement = $(".length", @)
+    length = $(".song-link", @).text()
+    lengthElement.text(length)
+    $(".song-link", @).remove()
 
   $(playlistElement).on "click", "tr", ->
     aData = table.fnGetData @
@@ -920,7 +964,7 @@ class DirectoryNameGetter
 UNKNOWN_STRING = "UNKNOWN"
 
 class SongInfoGetter
-  constructor: (@directories, @songDirs, @filenames) ->
+  constructor: (@playbackType, @directories, @songDirs, @filenames) ->
 
   update: (@directories, @songDirs, @filenames) =>
 
@@ -974,6 +1018,11 @@ class SongInfoGetter
     basename = @basename song
     directoryName = @directory song
     return [directoryName, basename].join ""
+
+  url: (song) =>
+    encodedPath = encodeURIComponent @filename song
+    songUrl = "file/#{encodedPath}?type=#{@playbackType.request}"
+    return songUrl
 
 
 createSong = (fields, index, fileinfo) ->
@@ -1071,7 +1120,7 @@ $(document).ready ->
   directoryNames = new DirectoryNameGetter storedDirectories
   songDirs = storedSong.songDirs or [0]
   filenames = storedSong.filenames or [""]
-  songInfo = new SongInfoGetter directoryNames, songDirs, filenames
+  songInfo = new SongInfoGetter playbackType, directoryNames, songDirs, filenames
   playerInstance = new Player songInfo, playerElement, preloadElement, localStorage, timeouter, playbackType
 
   if storedSong.songData
