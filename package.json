@@ -1,10 +1,15 @@
 {
   "name": "node-music-converter",
   "preferGlobal": "true",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Jussi Judin <jjudin+nodemusicconverter@iki.fi>",
-  "description": "Node.js based music converter",
+  "description": "Node.js based HTML5 music player.",
+  "repository": {
+    "type": "mercurial",
+    "url": "https://bitbucket.org/barro/node-music-converter"
+  },
   "dependencies" : {
+    "bower": "0.9.x",
     "coffee-script": "1.6.x",
     "colors"   :  "*",
     "connect-assets": "2.4.x",
@@ -23,6 +28,8 @@
   },
   "noAnalyze": true,
   "devDependencies": {
+    "karma": "0.8.x",
+    "phantomjs": "1.9.x"
   },
   "bundleDependencies": [
   ],
