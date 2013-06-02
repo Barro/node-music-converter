@@ -1,4 +1,4 @@
-Node music converter
+Node music converter [![Build Status](https://travis-ci.org/Barro/node-music-converter.png)](https://travis-ci.org/Barro/node-music-converter)
 ====================
 
 Node music converter is a HTML 5 based music player designed for huge
