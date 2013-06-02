@@ -28,6 +28,7 @@
   },
   "noAnalyze": true,
   "devDependencies": {
+    "jasmine-node": "1.8.x",
     "karma": "0.8.x",
     "phantomjs": "1.9.x"
   },
