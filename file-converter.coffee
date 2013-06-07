@@ -4,12 +4,37 @@ fs = require 'fs'
 path = require 'path'
 _s = require "underscore.string"
 temp = require 'temp'
+util = require "./util"
 
 # 1 minute of 160 kbps music.
 FAILED_CONVERSION_IS_OK_SIZE = 60 * 160 * 1000 / 8
 
-FFMPEG = "ffmpeg"
+FFMPEG_CANDIDATES = ["avconv", "ffmpeg"]
+FFMPEG = null
+util.findExecutable FFMPEG_CANDIDATES, ["-version"], (executable) =>
+  console.log "ffmpeg executable: #{executable}"
+  FFMPEG = executable
+
 XMP = "xmp"
+
+executeFfmpeg = (log, source, target, conversionOptions) ->
+  options =
+    cwd: "/tmp/"
+  args = ["-i", source, '-vn']
+    .concat(conversionOptions)
+    .concat(['-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target])
+  log.debug "Starting ffmpeg conversion: #{FFMPEG} #{args.join(' ')}"
+  try
+    ffmpeg = child_process.spawn FFMPEG, args, options
+  catch error
+    log.error "Failed to start the encoding process: #{error.message}."
+    return [null, error]
+  ffmpeg.stdin.end()
+  ffmpeg.stdout.on 'data', (data) ->
+  ffmpeg.stderr.on 'data', (data) ->
+  ffmpeg.on "error", =>
+    throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
+  return [ffmpeg, null]
 
 class ModPreprocessor
   knownTypes: ["it", "xm", "mod", "s3m", "mtm"]
@@ -84,20 +109,11 @@ class OpusConverter extends AudioConverter
     callback null
 
   convert: (source, bitrate, target, callback) =>
-    options =
-      cwd: "/tmp/"
-    args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libopus', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
-    @log.debug "Starting Opus conversion: #{FFMPEG} #{args.join(' ')}"
-    try
-      ffmpeg = child_process.spawn FFMPEG, args, options
-    catch error
-      @log.error "Failed to start the encoding process: #{error.message}."
+    options = ['-acodec', 'libopus', '-ab', bitrate]
+    [ffmpeg, error] = executeFfmpeg @log, source, target, options
+    if error
       callback error
       return
-    ffmpeg.stdout.on 'data', (data) ->
-    ffmpeg.stderr.on 'data', (data) ->
-    ffmpeg.on "error", =>
-      throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
       @_conversionDone target, code, callback
 
@@ -133,20 +149,11 @@ class VorbisConverter extends AudioConverter
       callback null
 
   convert: (source, bitrate, target, callback) =>
-    options =
-      cwd: "/tmp/"
-    args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libvorbis', '-ab', bitrate, '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', '-y', target]
-    @log.debug "Starting Vorbis conversion: #{FFMPEG} #{args.join(' ')}"
-    try
-      ffmpeg = child_process.spawn FFMPEG, args, options
-    catch error
-      @log.error "Failed to start the encoding process: #{error.message}."
+    options = ['-acodec', 'libvorbis', '-ab', bitrate]
+    [ffmpeg, error] = executeFfmpeg @log, source, target, options
+    if error
       callback error
       return
-    ffmpeg.stdout.on 'data', (data) ->
-    ffmpeg.stderr.on 'data', (data) ->
-    ffmpeg.on "error", =>
-      throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
       @_conversionDone target, code, callback
 
@@ -180,20 +187,11 @@ class Mp3Converter extends AudioConverter
       callback null
 
   convert: (source, bitrate, target, callback) =>
-    options =
-      cwd: "/tmp/"
-    args = ["-nostdin", "-i", source, '-vn', '-acodec', 'libmp3lame', '-ab', bitrate, '-y', '-ar', '48000', '-ac', '2', '-loglevel', 'quiet', target]
-    @log.debug "Starting MP3 conversion: #{FFMPEG} #{args.join(' ')}"
-    try
-      ffmpeg = child_process.spawn FFMPEG, args, options
-    catch error
-      @log.error "Failed to start the encoding process: #{error.message}."
+    options = ['-acodec', 'libmp3lame', '-ab', bitrate]
+    [ffmpeg, error] = executeFfmpeg @log, source, target, options
+    if error
       callback error
       return
-    ffmpeg.stdout.on 'data', (data) ->
-    ffmpeg.stderr.on 'data', (data) ->
-    ffmpeg.on "error", =>
-      throw new Error "No ffmpeg executable '#{FFMPEG}' in path!"
     ffmpeg.on 'exit', (code) =>
       @_conversionDone target, code, callback
 

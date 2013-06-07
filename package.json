@@ -9,6 +9,7 @@
     "url": "https://bitbucket.org/barro/node-music-converter"
   },
   "dependencies" : {
+    "async": "0.2.x",
     "bower": "0.9.x",
     "coffee-script": "1.6.x",
     "colors"   :  "*",

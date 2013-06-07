@@ -1,3 +1,5 @@
+async = require "async"
+child_process = require "child_process"
 fs = require "fs"
 
 
@@ -25,3 +27,19 @@ exports.createPrefixStripper = (filename) ->
     prefixes.push line
   stripper = new PrefixStripper prefixes
   return stripper
+
+
+exports.findExecutable = (candidates, arguments_, callback) ->
+  isExecutable = (candidate, work_callback) ->
+    process = child_process.spawn candidate, arguments_
+    process.on "error", =>
+      work_callback null, [candidate, false]
+    process.on 'exit', (code) =>
+      work_callback null, [candidate, true]
+
+  async.map candidates, isExecutable, (err, results) ->
+    for [candidate, executable] in results
+      if executable
+        callback candidate
+        return
+    callback null
