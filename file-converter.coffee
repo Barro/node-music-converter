@@ -83,7 +83,7 @@ class AudioConverter
       # We have failed file conversion. Let's check
       # if the resulting file is large enough so that
       # we can accept the conversion anyway.
-      fs.stat target, (err, stats) ->
+      fs.stat target, (err, stats) =>
         if err
           callback "Failed file conversion. No file exists."
           return
