@@ -118,6 +118,29 @@ class OpusConverter extends AudioConverter
       @_conversionDone target, code, callback
 
 
+class AacConverter extends AudioConverter
+  suffix: =>
+    return "aac"
+
+  audioType: =>
+    return "audio/aac"
+
+  mimeType: =>
+    return "audio/x-hx-aac-adts"
+
+  _audioGain: (target, callback) =>
+    callback null
+
+  convert: (source, bitrate, target, callback) =>
+    options = ['-acodec', 'aac', '-profile:a', 'aac_low', '-ab', bitrate]
+    [ffmpeg, error] = executeFfmpeg @log, source, target, options
+    if error
+      callback error
+      return
+    ffmpeg.on 'exit', (code) =>
+      @_conversionDone target, code, callback
+
+
 class VorbisConverter extends AudioConverter
   suffix: =>
     return "ogg"
