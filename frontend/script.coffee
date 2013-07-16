@@ -406,6 +406,9 @@ class Player
   getPosition: =>
     return @player.currentTime
 
+  getDuration: =>
+    return @player.duration
+
   isPlaying: =>
     return @player.networkState != @player.NETWORK_NO_SOURCE
 
@@ -414,6 +417,8 @@ class Player
 
 
 viewTimeString = (total_seconds) ->
+  if total_seconds == Infinity
+    return "??:??"
   hours = parseInt total_seconds / 3600
   remaining_seconds = total_seconds - hours * 3600
   minutes = parseInt remaining_seconds / 60
@@ -426,6 +431,12 @@ viewTimeString = (total_seconds) ->
   time_str = hours_str + _.str.sprintf "%02d:%02d", minutes, seconds
   return time_str
 
+updatePositionSlider = (positionSlider, currentTime, duration) ->
+  if duration != Infinity
+    positionSlider.removeAttr("disabled")
+    positionSlider.val (currentTime / duration)
+  else
+    positionSlider.attr("disabled", "disabled")
 
 PlayerView = (songInfo, playerElement, player, songQueue) ->
   queueStatus = $("#queue-length", playerElement)
@@ -573,17 +584,16 @@ PlayerView = (songInfo, playerElement, player, songQueue) ->
   positionSlider = $(".position-slider", playerElement)
   positionElement = $(".current-position", playerElement)
   player.on "timeupdate", (currentTime, duration) ->
-    positionSlider.attr "value", currentTime
+    updatePositionSlider positionSlider, currentTime, duration
     positionElement.text viewTimeString currentTime
 
   positionSlider.bind "change", ->
     me = $(@)
-    player.setPosition me.val()
-    positionSlider.val player.getPosition()
+    player.setPosition (me.val() * player.getDuration())
+    updatePositionSlider positionSlider, player.getPosition(), player.getDuration()
 
   durationElement = $(".duration", playerElement)
   player.on "durationchange", (duration) ->
-    positionSlider.attr "max", duration
     durationElement.text viewTimeString duration
   player.on "preparePlay", (song) ->
     durationElement.text viewTimeString 0
