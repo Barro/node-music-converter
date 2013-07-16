@@ -323,6 +323,7 @@ class FileConverter
     @bitrate = "160k"
     @preprocessors = [new ModPreprocessor @log]
     @converters =
+      aac: new AacConverter @log
       mp3: new Mp3Converter @log
       ogg: new VorbisConverter @log
     @_ongoingConversions = {}
