@@ -1092,7 +1092,7 @@ $(document).ready ->
   audio = new Audio();
   playbackType = null
   if (audio.canPlayType("audio/aac"))
-    playbackType = new PlaybackType "ogg", "audio/aac"
+    playbackType = new PlaybackType "aac", "audio/aac"
   else if (audio.canPlayType("audio/ogg"))
     playbackType = new PlaybackType "ogg", "audio/ogg"
   else if (audio.canPlayType("audio/mpeg"))
