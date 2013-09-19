@@ -132,7 +132,12 @@ class AacConverter extends AudioConverter
     callback null
 
   convert: (source, bitrate, target, callback) =>
-    options = ['-acodec', 'aac', '-profile:a', 'aac_low', '-ab', bitrate]
+    options = [
+      '-strict', 'experimental',
+      '-acodec', 'aac',
+      '-profile:a', 'aac_low',
+      '-ab', bitrate
+      ]
     [ffmpeg, error] = executeFfmpeg @log, source, target, options
     if error
       callback error
