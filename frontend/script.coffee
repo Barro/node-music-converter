@@ -1086,8 +1086,12 @@ START_PROCESS = null;
 
 SEARCH_WORKER = new Worker "/search.js"
 
+isTouchDevice = ->
+  return ('ontouchstart' of window) or ('onmsgesturechange' of window)
+
 $(document).ready ->
-  $('[data-toggle=tooltip]').tooltip({delay: { show: 400, hide: 100 }})
+  if not isTouchDevice()
+    $('[data-toggle=tooltip]').tooltip({delay: { show: 400, hide: 100 }})
 
   audio = new Audio();
   playbackType = null
